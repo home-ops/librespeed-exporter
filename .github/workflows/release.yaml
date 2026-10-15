@@ -62,8 +62,11 @@ jobs:
       - name: Check shell scripts and smoke-test harness
         run: |
           sh -n scripts/check-deploy-assets.sh scripts/image-smoke-test.sh \
-            scripts/image-smoke-test-test.sh scripts/update-go-license-notices.sh
+            scripts/image-smoke-test-test.sh \
+            scripts/update-go-license-notices.sh \
+            scripts/verify_cli_tag_refspec_test.sh
           sh scripts/image-smoke-test-test.sh
+          sh scripts/verify_cli_tag_refspec_test.sh
           python3 -m unittest scripts.promote_latest_test
           python3 -m unittest scripts.release_assets_test
 

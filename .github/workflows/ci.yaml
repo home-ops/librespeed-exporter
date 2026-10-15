@@ -50,9 +50,8 @@ jobs:
 
       - name: Verify LibreSpeed release tag points to selected commit
         run: |
-          git -C librespeed-cli-source fetch --depth=1 origin \
-            "refs/tags/${{ steps.cli.outputs.version }}:"\
-            "refs/tags/${{ steps.cli.outputs.version }}"
+          tag_ref="refs/tags/${{ steps.cli.outputs.version }}:refs/tags/${{ steps.cli.outputs.version }}"
+          git -C librespeed-cli-source fetch --depth=1 origin "$tag_ref"
           test "$(git -C librespeed-cli-source rev-list -n 1 \
             '${{ steps.cli.outputs.version }}')" = \
             '${{ steps.cli.outputs.commit }}'
@@ -100,8 +99,10 @@ jobs:
         run: |
           sh -n scripts/check-deploy-assets.sh scripts/image-smoke-test.sh \
             scripts/image-smoke-test-test.sh \
-            scripts/update-go-license-notices.sh
+            scripts/update-go-license-notices.sh \
+            scripts/verify_cli_tag_refspec_test.sh
           sh scripts/image-smoke-test-test.sh
+          sh scripts/verify_cli_tag_refspec_test.sh
           python3 -m unittest scripts.promote_latest_test
           python3 -m unittest scripts.release_assets_test
 
