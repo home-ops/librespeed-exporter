@@ -109,7 +109,18 @@ jobs:
       - name: Install pinned deployment validators
         run: |
           python3 -m pip install --disable-pip-version-check yamllint==1.37.1
-          go install github.com/prometheus/prometheus/cmd/promtool@v3.5.0
+          archive="$RUNNER_TEMP/prometheus-3.5.0.linux-amd64.tar.gz"
+          curl --fail --location --silent --show-error \
+            --proto '=https' --tlsv1.2 \
+            https://github.com/prometheus/prometheus/releases/download/v3.5.0/prometheus-3.5.0.linux-amd64.tar.gz \
+            --output "$archive"
+          printf '%s  %s\n' \
+            e811827af26d822afb09a4f28314f61b618b12cff5369835a67f674d8b46f39a \
+            "$archive" | sha256sum --check --status
+          mkdir -p "$RUNNER_TEMP/prometheus-3.5.0"
+          tar -xzf "$archive" -C "$RUNNER_TEMP/prometheus-3.5.0" \
+            --strip-components=1 prometheus-3.5.0.linux-amd64/promtool
+          echo "$RUNNER_TEMP/prometheus-3.5.0" >> "$GITHUB_PATH"
           go install github.com/yannh/kubeconform/cmd/kubeconform@v0.6.7
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
 
