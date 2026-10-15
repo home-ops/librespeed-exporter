@@ -106,7 +106,7 @@ if ! DOCKER="$tmpdir/fake-docker" \
 	exit 1
 fi
 
-if ! rg --quiet -- '--noproxy \*' "$tmpdir/curl-success.log"; then
+if ! grep -Fq -- '--noproxy *' "$tmpdir/curl-success.log"; then
 	printf '%s\n' 'every successful-mode curl call must bypass proxies' >&2
 	exit 1
 fi
@@ -127,7 +127,7 @@ perl -e 'exit(($ARGV[1] - $ARGV[0] < 2) ? 0 : 1)' "$started" "$ended" || {
 	exit 1
 }
 
-if ! rg --quiet -- '--noproxy \*' "$tmpdir/curl-timeout.log"; then
+if ! grep -Fq -- '--noproxy *' "$tmpdir/curl-timeout.log"; then
 	printf '%s\n' 'every timeout-mode curl call must bypass proxies' >&2
 	exit 1
 fi
