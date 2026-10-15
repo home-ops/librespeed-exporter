@@ -1,0 +1,26 @@
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: librespeed-exporter
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: librespeed-exporter
+  policyTypes:
+    - Ingress
+  ingress:
+    # Health-only endpoints; kubelet/node source handling may need CNI rules.
+    - ports:
+        - protocol: TCP
+          port: 9468
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: prometheus
+      ports:
+        - protocol: TCP
+          port: 9469

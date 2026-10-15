@@ -1,0 +1,178 @@
+---
+# yamllint disable rule:line-length
+name: CI
+
+"on":
+  pull_request:
+  push:
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - name: Check out source
+        # v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+
+      - name: Read pinned LibreSpeed CLI coordinates
+        id: cli
+        run: |
+          set -eu
+          version=$(awk -F'`' '/^- Release:/ {print $2; exit}' THIRD_PARTY.md)
+          commit=$(awk -F'`' '/^- Source commit:/ {print $2; exit}' \
+            THIRD_PARTY.md)
+          printf '%s\n' "$version" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$'
+          printf '%s\n' "$commit" | grep -Eq '^[0-9a-f]{40}$'
+          grep -Fq "ARG LIBRESPEED_CLI_VERSION=$version" Dockerfile
+          grep -Fq "ARG LIBRESPEED_CLI_COMMIT=$commit" Dockerfile
+          printf 'version=%s\n' "$version" >> "$GITHUB_OUTPUT"
+          printf 'commit=%s\n' "$commit" >> "$GITHUB_OUTPUT"
+
+      - name: Check out exact LibreSpeed CLI source
+        # v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          repository: librespeed/speedtest-cli
+          ref: ${{ steps.cli.outputs.commit }}
+          path: librespeed-cli-source
+          persist-credentials: false
+
+      - name: Verify LibreSpeed release tag points to selected commit
+        run: |
+          git -C librespeed-cli-source fetch --depth=1 origin \
+            "refs/tags/${{ steps.cli.outputs.version }}:"\
+            "refs/tags/${{ steps.cli.outputs.version }}"
+          test "$(git -C librespeed-cli-source rev-list -n 1 \
+            '${{ steps.cli.outputs.version }}')" = \
+            '${{ steps.cli.outputs.commit }}'
+
+      - name: Verify corresponding-source archive digest
+        env:
+          CLI_COMMIT: ${{ steps.cli.outputs.commit }}
+        run: |
+          set -eu
+          test "$(git -C librespeed-cli-source rev-parse HEAD)" = "$CLI_COMMIT"
+          git -C librespeed-cli-source archive --format=tar "$CLI_COMMIT" \
+            | gzip -n > "$RUNNER_TEMP/librespeed-cli-source.tar.gz"
+          digest=$(sha256sum "$RUNNER_TEMP/librespeed-cli-source.tar.gz" \
+            | awk '{print $1}')
+          printf '%s  %s\n' "$digest" \
+            "$RUNNER_TEMP/librespeed-cli-source.tar.gz" \
+            > "$RUNNER_TEMP/librespeed-cli-source.tar.gz.sha256"
+          sha256sum --check "$RUNNER_TEMP/librespeed-cli-source.tar.gz.sha256"
+
+      - name: Set up Go
+        # v5
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff
+        with:
+          go-version: 1.25.8
+          cache: true
+
+      - name: Check formatting
+        run: test -z "$(gofmt -l cmd internal)"
+
+      - name: Install pinned Go license notice generator
+        run: |
+          go install github.com/google/go-licenses/v2@v2.0.1
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+
+      - name: Verify Go license notices are current
+        run: sh scripts/update-go-license-notices.sh --check
+
+      - name: Run tests with race detector
+        run: go test ./... -race -count=1
+
+      - name: Run go vet
+        run: go vet ./...
+
+      - name: Check shell scripts and smoke-test harness
+        run: |
+          sh -n scripts/check-deploy-assets.sh scripts/image-smoke-test.sh \
+            scripts/image-smoke-test-test.sh \
+            scripts/update-go-license-notices.sh
+          sh scripts/image-smoke-test-test.sh
+          python3 -m unittest scripts.promote_latest_test
+          python3 -m unittest scripts.release_assets_test
+
+      - name: Install pinned deployment validators
+        run: |
+          python3 -m pip install --disable-pip-version-check yamllint==1.37.1
+          go install github.com/prometheus/prometheus/cmd/promtool@v3.5.0
+          go install github.com/yannh/kubeconform/cmd/kubeconform@v0.6.7
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+
+      - name: Validate deployment assets
+        run: |
+          sh scripts/check-deploy-assets.sh
+          sh scripts/check-deploy-assets.sh --self-test
+          yamllint -s \
+            .github/workflows/ci.yaml .github/workflows/release.yaml \
+            deploy/docker-compose.yaml deploy/kubernetes/deployment.yaml \
+            deploy/kubernetes/service.yaml \
+            deploy/kubernetes/networkpolicy.yaml \
+            deploy/prometheus/prometheus.yaml examples/web-config.yaml
+          promtool check config deploy/prometheus/prometheus.yaml
+          promtool check web-config examples/web-config.yaml
+          kubeconform -strict -summary deploy/kubernetes/
+
+      - name: Set up Docker Buildx
+        #  v3
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f
+
+      - name: Build amd64 image for local smoke test
+        run: >-
+          docker buildx build --platform linux/amd64 --load
+          --tag librespeed-exporter:ci .
+
+      - name: Smoke-test amd64 image
+        run: sh scripts/image-smoke-test.sh librespeed-exporter:ci
+
+      - name: Scan image with Trivy (findings are report-only)
+        #  v0.36.0
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25
+        with:
+          scan-type: image
+          image-ref: librespeed-exporter:ci
+          scanners: vuln,misconfig,secret
+          format: json
+          output: trivy-image.json
+          exit-code: "0"
+          version: v0.70.0
+
+      - name: Scan source with Trivy (findings are report-only)
+        #  v0.36.0
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25
+        with:
+          scan-type: fs
+          scan-ref: .
+          scanners: vuln,misconfig,secret
+          format: json
+          output: trivy-source.json
+          exit-code: "0"
+          version: v0.70.0
+
+      - name: Require Trivy reports
+        run: test -s trivy-source.json && test -s trivy-image.json
+
+      - name: Upload scan reports
+        if: always()
+        # v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: ci-scan-reports-${{ github.run_id }}
+          path: |
+            trivy-source.json
+            trivy-image.json
+          if-no-files-found: warn
+          retention-days: 14

@@ -1,0 +1,90 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    "docker:pinDigests"
+  ],
+  "timezone": "UTC",
+  "schedule": ["before 6am"],
+  "prConcurrentLimit": 5,
+  "labels": ["dependencies"],
+  "dependencyDashboard": true,
+  "pinDigests": true,
+  "enabledManagers": [
+    "gomod",
+    "github-actions",
+    "dockerfile",
+    "custom.regex"
+  ],
+  "packageRules": [
+    {
+      "description": "Group Go module updates",
+      "matchManagers": ["gomod"],
+      "groupName": "Go dependencies"
+    },
+    {
+      "description": "Group GitHub Actions updates",
+      "matchManagers": ["github-actions"],
+      "groupName": "GitHub Actions"
+    },
+    {
+      "description": "Group Docker base image digest updates",
+      "matchManagers": ["dockerfile"],
+      "groupName": "Docker base images"
+    },
+    {
+      "description": "Automerge only tested Go module patch updates",
+      "matchManagers": ["gomod"],
+      "matchFileNames": ["go.mod"],
+      "matchUpdateTypes": ["patch"],
+      "automerge": true,
+      "automergeType": "pr",
+      "platformAutomerge": false
+    },
+    {
+      "description": "Keep LibreSpeed CLI release and exact source commit reviewable",
+      "matchManagers": ["custom.regex"],
+      "groupName": "LibreSpeed CLI source",
+      "automerge": false
+    }
+  ],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "Update LibreSpeed CLI release and exact commit in build inputs",
+      "managerFilePatterns": ["/^THIRD_PARTY\\.md$/"],
+      "matchStrings": [
+        "- Release: `(?<currentValue>v[0-9]+\\.[0-9]+\\.[0-9]+)`\\n- Source commit: `(?<currentDigest>[0-9a-f]{40})`"
+      ],
+      "depNameTemplate": "librespeed-cli-release-notice",
+      "packageNameTemplate": "librespeed/speedtest-cli",
+      "datasourceTemplate": "custom.librespeed-cli-tags",
+      "versioningTemplate": "semver",
+      "autoReplaceStringTemplate": "- Release: `{{{newValue}}}`\n- Source commit: `{{{newDigest}}}`"
+    },
+    {
+      "customType": "regex",
+      "description": "Keep CLI build version and commit aligned with THIRD_PARTY.md",
+      "managerFilePatterns": ["/^Dockerfile$/"],
+      "matchStrings": [
+        "ARG LIBRESPEED_CLI_VERSION=(?<currentValue>v[0-9]+\\.[0-9]+\\.[0-9]+)\\nARG LIBRESPEED_CLI_COMMIT=(?<currentDigest>[0-9a-f]{40})"
+      ],
+      "depNameTemplate": "librespeed-cli-docker-build-input",
+      "packageNameTemplate": "librespeed/speedtest-cli",
+      "datasourceTemplate": "custom.librespeed-cli-tags",
+      "versioningTemplate": "semver",
+      "autoReplaceStringTemplate": "ARG LIBRESPEED_CLI_VERSION={{{newValue}}}\nARG LIBRESPEED_CLI_COMMIT={{{newDigest}}}"
+    }
+  ],
+  "customDatasources": {
+    "librespeed-cli-tags": {
+      "defaultRegistryUrlTemplate": "https://api.github.com/repos/librespeed/speedtest-cli/tags?per_page=100",
+      "transformTemplates": [
+        "{\"releases\": $map($, function($tag) { {\"version\": $tag.name, \"digest\": $tag.commit.sha} })}"
+      ]
+    }
+  },
+  "vulnerabilityAlerts": {
+    "automerge": false
+  }
+}

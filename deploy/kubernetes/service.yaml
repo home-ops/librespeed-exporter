@@ -1,0 +1,16 @@
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: librespeed-exporter
+  labels:
+    app.kubernetes.io/name: librespeed-exporter
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: librespeed-exporter
+  ports:
+    - name: metrics
+      port: 9469
+      targetPort: metrics
+      protocol: TCP

@@ -1,0 +1,100 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: librespeed-exporter
+  labels:
+    app.kubernetes.io/name: librespeed-exporter
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: librespeed-exporter
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: librespeed-exporter
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        fsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: librespeed-exporter
+          # yamllint disable-line rule:line-length
+          image: ghcr.io/home-ops/librespeed-exporter@sha256:REPLACE_WITH_VERIFIED_IMAGE_DIGEST
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: LISTEN_ADDRESS
+              value: 0.0.0.0:9469
+            - name: LIBRESPEED_SERVERS_FILE
+              value: /etc/librespeed/servers.json
+            - name: WEB_CONFIG_FILE
+              value: /etc/librespeed/web-config.yaml
+            - name: TEST_INTERVAL
+              value: 1h
+            - name: TEST_TIMEOUT
+              value: 2m
+          ports:
+            - name: metrics
+              containerPort: 9469
+              protocol: TCP
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 500m
+              memory: 128Mi
+          volumeMounts:
+            - name: servers
+              mountPath: /etc/librespeed/servers.json
+              subPath: servers.json
+              readOnly: true
+            - name: web-config
+              mountPath: /etc/librespeed/web-config.yaml
+              subPath: web-config.yaml
+              readOnly: true
+          startupProbe:
+            httpGet:
+              path: /healthz
+              # Health-only listener; not exposed by Service or hostPort.
+              port: 9468
+            periodSeconds: 5
+            failureThreshold: 12
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 9468
+            periodSeconds: 30
+            timeoutSeconds: 3
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: 9468
+            periodSeconds: 10
+            timeoutSeconds: 3
+      volumes:
+        - name: servers
+          configMap:
+            name: librespeed-exporter-servers
+            items:
+              - key: servers.json
+                path: servers.json
+        - name: web-config
+          secret:
+            secretName: librespeed-exporter-web-config
+            defaultMode: 0440
+            items:
+              - key: web-config.yaml
+                path: web-config.yaml

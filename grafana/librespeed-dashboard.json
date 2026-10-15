@@ -1,0 +1,208 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": { "defaults": { "unit": "bps", "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] } }, "overrides": [] },
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
+      "id": 1,
+      "options": { "colorMode": "value", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "showPercentChange": false, "textMode": "auto" },
+      "targets": [{ "expr": "librespeed_download_bits_per_second{server_id=~\"$server_id\"}", "refId": "A" }],
+      "title": "Latest download",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": { "defaults": { "unit": "bps", "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] } }, "overrides": [] },
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 0 },
+      "id": 2,
+      "options": { "colorMode": "value", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "showPercentChange": false, "textMode": "auto" },
+      "targets": [{ "expr": "librespeed_upload_bits_per_second{server_id=~\"$server_id\"}", "refId": "A" }],
+      "title": "Latest upload",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": { "defaults": { "unit": "s", "decimals": 3 }, "overrides": [] },
+      "gridPos": { "h": 4, "w": 4, "x": 12, "y": 0 },
+      "id": 3,
+      "options": { "colorMode": "value", "graphMode": "none", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "showPercentChange": false, "textMode": "auto" },
+      "targets": [{ "expr": "librespeed_ping_seconds{server_id=~\"$server_id\"}", "refId": "A" }],
+      "title": "Latest ping",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": { "defaults": { "unit": "s", "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "orange", "value": 3600 }, { "color": "red", "value": 86400 }] } }, "overrides": [] },
+      "gridPos": { "h": 4, "w": 4, "x": 16, "y": 0 },
+      "id": 4,
+      "options": { "colorMode": "value", "graphMode": "none", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "showPercentChange": false, "textMode": "auto" },
+      "targets": [{ "expr": "time() - librespeed_test_last_success_timestamp_seconds{server_id=~\"$server_id\"}", "refId": "A" }],
+      "title": "Age of last success",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": { "defaults": { "unit": "short", "thresholds": { "mode": "absolute", "steps": [{ "color": "red", "value": null }, { "color": "green", "value": 1 }] } }, "overrides": [] },
+      "gridPos": { "h": 4, "w": 4, "x": 20, "y": 0 },
+      "id": 5,
+      "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "showPercentChange": false, "textMode": "auto" },
+      "targets": [{ "expr": "librespeed_test_success{server_id=~\"$server_id\"}", "refId": "A" }],
+      "title": "Latest attempt succeeded",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": { "defaults": { "unit": "bps", "custom": { "drawStyle": "line", "lineInterpolation": "smooth", "lineWidth": 2, "fillOpacity": 12 } }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
+      "id": 6,
+      "options": { "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } },
+      "targets": [
+        { "expr": "librespeed_download_bits_per_second{server_id=~\"$server_id\"}", "legendFormat": "download {{server_id}}", "refId": "A" },
+        { "expr": "librespeed_upload_bits_per_second{server_id=~\"$server_id\"}", "legendFormat": "upload {{server_id}}", "refId": "B" }
+      ],
+      "title": "Bandwidth history",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": { "defaults": { "unit": "s", "custom": { "drawStyle": "line", "lineInterpolation": "smooth", "lineWidth": 2, "fillOpacity": 8 } }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 },
+      "id": 7,
+      "options": { "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } },
+      "targets": [
+        { "expr": "librespeed_ping_seconds{server_id=~\"$server_id\"}", "legendFormat": "ping {{server_id}}", "refId": "A" },
+        { "expr": "librespeed_jitter_seconds{server_id=~\"$server_id\"}", "legendFormat": "jitter {{server_id}}", "refId": "B" }
+      ],
+      "title": "Latency and jitter history",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": { "defaults": { "unit": "short", "custom": { "drawStyle": "bars", "lineWidth": 1, "fillOpacity": 30, "stacking": { "mode": "none", "group": "A" } } }, "overrides": [] },
+      "gridPos": { "h": 7, "w": 12, "x": 0, "y": 12 },
+      "id": 8,
+      "options": { "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } },
+      "targets": [{ "expr": "increase(librespeed_test_failures_total{server_id=~\"$server_id\"}[$__rate_interval])", "legendFormat": "failures {{server_id}}", "refId": "A" }],
+      "title": "Failed tests per interval",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": { "defaults": { "unit": "bytes", "custom": { "drawStyle": "line", "lineInterpolation": "smooth", "lineWidth": 2, "fillOpacity": 8 } }, "overrides": [] },
+      "gridPos": { "h": 7, "w": 12, "x": 12, "y": 12 },
+      "id": 9,
+      "options": { "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } },
+      "targets": [
+        { "expr": "librespeed_bytes_sent{server_id=~\"$server_id\"}", "legendFormat": "bytes sent {{server_id}}", "refId": "A" },
+        { "expr": "librespeed_bytes_received{server_id=~\"$server_id\"}", "legendFormat": "bytes received {{server_id}}", "refId": "B" }
+      ],
+      "title": "Transfer volume",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": { "defaults": { "unit": "short", "custom": { "drawStyle": "steps", "lineWidth": 2, "fillOpacity": 5 } }, "overrides": [] },
+      "gridPos": { "h": 7, "w": 12, "x": 0, "y": 19 },
+      "id": 10,
+      "options": { "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } },
+      "targets": [{ "expr": "librespeed_test_success{server_id=~\"$server_id\"}", "legendFormat": "success {{server_id}}", "refId": "A" }],
+      "title": "Attempt success history",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": { "defaults": { "unit": "s", "custom": { "drawStyle": "line", "lineWidth": 2, "fillOpacity": 8 } }, "overrides": [] },
+      "gridPos": { "h": 7, "w": 12, "x": 12, "y": 19 },
+      "id": 11,
+      "options": { "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } },
+      "targets": [{ "expr": "time() - librespeed_test_last_success_timestamp_seconds{server_id=~\"$server_id\"}", "legendFormat": "success age {{server_id}}", "refId": "A" }],
+      "title": "Freshness history (age of latest success)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": { "defaults": { "unit": "s", "custom": { "drawStyle": "line", "lineInterpolation": "smooth", "lineWidth": 2, "fillOpacity": 8 } }, "overrides": [] },
+      "gridPos": { "h": 6, "w": 12, "x": 0, "y": 26 },
+      "id": 12,
+      "options": { "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } },
+      "targets": [{ "expr": "librespeed_test_duration_seconds{server_id=~\"$server_id\"}", "legendFormat": "duration {{server_id}}", "refId": "A" }],
+      "title": "Test duration by attempt",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": { "defaults": { "unit": "s", "custom": { "drawStyle": "line", "lineInterpolation": "smooth", "lineWidth": 2, "fillOpacity": 8 } }, "overrides": [] },
+      "gridPos": { "h": 6, "w": 12, "x": 12, "y": 32 },
+      "id": 13,
+      "options": { "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } },
+      "targets": [{ "expr": "time() - librespeed_test_last_attempt_timestamp_seconds{server_id=~\"$server_id\"}", "legendFormat": "attempt age {{server_id}}", "refId": "A" }],
+      "title": "Age of latest attempt",
+      "type": "timeseries"
+    }
+  ],
+  "refresh": "1m",
+  "schemaVersion": 39,
+  "tags": ["librespeed", "prometheus", "network"],
+  "templating": {
+    "list": [
+      {
+        "current": {},
+        "hide": 0,
+        "includeAll": false,
+        "label": "Datasource",
+        "name": "datasource",
+        "options": [],
+        "query": "prometheus",
+        "refresh": 1,
+        "regex": "",
+        "type": "datasource",
+        "pluginId": "prometheus"
+      },
+      {
+        "allValue": ".*",
+        "current": {},
+        "datasource": { "type": "prometheus", "uid": "${datasource}" },
+        "definition": "label_values(librespeed_test_success, server_id)",
+        "hide": 0,
+        "includeAll": true,
+        "label": "Server ID",
+        "multi": true,
+        "name": "server_id",
+        "options": [],
+        "query": { "query": "label_values(librespeed_test_success, server_id)", "refId": "StandardVariableQuery" },
+        "refresh": 2,
+        "regex": "",
+        "sort": 1,
+        "type": "query"
+      }
+    ]
+  },
+  "time": { "from": "now-24h", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "LibreSpeed Exporter",
+  "uid": "librespeed-exporter",
+  "version": 1,
+  "weekStart": ""
+}

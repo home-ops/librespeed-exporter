@@ -1,0 +1,33 @@
+---
+services:
+  librespeed-exporter:
+    image: ${IMAGE:?Set IMAGE to a verified immutable GHCR digest reference}
+    user: "65532:65532"
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    pids_limit: 64
+    mem_limit: 128m
+    cpus: 0.5
+    restart: unless-stopped
+    environment:
+      LISTEN_ADDRESS: 0.0.0.0:9469
+      LIBRESPEED_SERVERS_FILE: /etc/librespeed/servers.json
+      WEB_CONFIG_FILE: /etc/librespeed/web-config.yaml
+      TEST_INTERVAL: ${TEST_INTERVAL:-1h}
+      TEST_TIMEOUT: ${TEST_TIMEOUT:-2m}
+    volumes:
+      - type: bind
+        source: ../examples/servers.json
+        target: /etc/librespeed/servers.json
+        read_only: true
+      - type: bind
+        source: ../examples/web-config.yaml
+        target: /etc/librespeed/web-config.yaml
+        read_only: true
+        bind:
+          create_host_path: false
+    ports:
+      - "127.0.0.1:${EXPORTER_PORT:-9469}:9469"

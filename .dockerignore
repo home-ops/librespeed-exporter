@@ -1,0 +1,15 @@
+.git
+.github
+docs
+deploy
+examples
+grafana
+scripts
+*.md
+!THIRD_PARTY.md
+LICENSES/*
+!LICENSES/GPL-3.0.txt
+!LICENSES/librespeed-cli-LGPL-3.0.txt
+!LICENSES/GO-MODULES/
+!LICENSES/GO-MODULES/**
+**/*_test.go

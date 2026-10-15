@@ -1,0 +1,647 @@
+---
+# yamllint disable rule:line-length
+name: Release
+
+"on":
+  schedule:
+    - cron: "0 */6 * * *"
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: release-${{ github.repository }}
+  cancel-in-progress: false
+
+env:
+  GOPROXY: https://proxy.golang.org,direct
+  IMAGE_NAME: ghcr.io/home-ops/librespeed-exporter
+
+jobs:
+  quality:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - name: Check out source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Go
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          go-version: 1.25.8
+          cache: true
+
+      - name: Validate release tag format
+        if: github.event_name == 'push'
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: printf '%s\n' "$RELEASE_TAG" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$'
+
+      - name: Check formatting
+        run: test -z "$(gofmt -l cmd internal)"
+
+      - name: Install pinned Go license notice generator
+        run: |
+          go install github.com/google/go-licenses/v2@v2.0.1
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+
+      - name: Verify Go license notices are current
+        run: sh scripts/update-go-license-notices.sh --check
+
+      - name: Run tests with race detector
+        run: go test ./... -race -count=1
+
+      - name: Run go vet
+        run: go vet ./...
+
+      - name: Check shell scripts and smoke-test harness
+        run: |
+          sh -n scripts/check-deploy-assets.sh scripts/image-smoke-test.sh \
+            scripts/image-smoke-test-test.sh scripts/update-go-license-notices.sh
+          sh scripts/image-smoke-test-test.sh
+          python3 -m unittest scripts.promote_latest_test
+          python3 -m unittest scripts.release_assets_test
+
+      - name: Install pinned deployment validators
+        run: |
+          python3 -m pip install --disable-pip-version-check yamllint==1.37.1
+          go install github.com/prometheus/prometheus/cmd/promtool@v3.5.0
+          go install github.com/yannh/kubeconform/cmd/kubeconform@v0.6.7
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+
+      - name: Validate deployment assets
+        run: |
+          sh scripts/check-deploy-assets.sh
+          sh scripts/check-deploy-assets.sh --self-test
+          yamllint -s \
+            .github/workflows/ci.yaml .github/workflows/release.yaml \
+            deploy/docker-compose.yaml deploy/kubernetes/deployment.yaml \
+            deploy/kubernetes/service.yaml deploy/kubernetes/networkpolicy.yaml \
+            deploy/prometheus/prometheus.yaml examples/web-config.yaml
+          promtool check config deploy/prometheus/prometheus.yaml
+          promtool check web-config examples/web-config.yaml
+          kubeconform -strict -summary deploy/kubernetes/
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+
+      - name: Build amd64 image for local smoke test
+        run: docker buildx build --platform linux/amd64 --load --tag librespeed-exporter:release-validation .
+
+      - name: Smoke-test amd64 image
+        run: sh scripts/image-smoke-test.sh librespeed-exporter:release-validation
+
+  source-scan:
+    needs: quality
+    outputs:
+      cli-version: ${{ steps.cli.outputs.version }}
+      cli-commit: ${{ steps.cli.outputs.commit }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - name: Check out source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Scan source with Trivy (findings are report-only)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          scanners: vuln,misconfig,secret
+          format: json
+          output: trivy-source.json
+          exit-code: "0"
+          version: v0.70.0
+
+      - name: Require source scan report
+        run: test -s trivy-source.json
+
+      - name: Read pinned LibreSpeed CLI coordinates
+        id: cli
+        run: |
+          set -eu
+          version=$(awk -F'`' '/^- Release:/ {print $2; exit}' THIRD_PARTY.md)
+          commit=$(awk -F'`' '/^- Source commit:/ {print $2; exit}' THIRD_PARTY.md)
+          printf '%s\n' "$version" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$'
+          printf '%s\n' "$commit" | grep -Eq '^[0-9a-f]{40}$'
+          grep -Fq "ARG LIBRESPEED_CLI_VERSION=$version" Dockerfile
+          grep -Fq "ARG LIBRESPEED_CLI_COMMIT=$commit" Dockerfile
+          printf 'version=%s\n' "$version" >> "$GITHUB_OUTPUT"
+          printf 'commit=%s\n' "$commit" >> "$GITHUB_OUTPUT"
+
+      - name: Check out corresponding LibreSpeed CLI source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          repository: librespeed/speedtest-cli
+          ref: ${{ steps.cli.outputs.commit }}
+          path: librespeed-cli-source
+          persist-credentials: false
+
+      - name: Verify CLI release tag resolves to pinned source commit
+        env:
+          CLI_VERSION: ${{ steps.cli.outputs.version }}
+          CLI_COMMIT: ${{ steps.cli.outputs.commit }}
+        run: |
+          git -C librespeed-cli-source fetch --depth=1 origin \
+            "refs/tags/${CLI_VERSION}:refs/tags/${CLI_VERSION}"
+          test "$(git -C librespeed-cli-source rev-list -n 1 "$CLI_VERSION")" = \
+            "$CLI_COMMIT"
+
+      - name: Create and verify exact corresponding-source archive
+        env:
+          CLI_VERSION: ${{ steps.cli.outputs.version }}
+          CLI_COMMIT: ${{ steps.cli.outputs.commit }}
+        run: |
+          set -eu
+          test "$(git -C librespeed-cli-source rev-parse HEAD)" = "$CLI_COMMIT"
+          mkdir -p release-artifacts
+          git -C librespeed-cli-source archive --format=tar "$CLI_COMMIT" \
+            | gzip -n > "release-artifacts/librespeed-cli-${CLI_VERSION}-source.tar.gz"
+          archive="release-artifacts/librespeed-cli-${CLI_VERSION}-source.tar.gz"
+          digest=$(sha256sum "$archive" | awk '{print $1}')
+          printf '%s  %s\n' "$digest" \
+            "librespeed-cli-${CLI_VERSION}-source.tar.gz" \
+            > "release-artifacts/librespeed-cli-${CLI_VERSION}-source.tar.gz.sha256"
+          (cd release-artifacts && sha256sum --check \
+            "librespeed-cli-${CLI_VERSION}-source.tar.gz.sha256")
+          expected_digest=$(awk -F'`' '/^- Corresponding-source archive SHA-256:/ {print $2; exit}' THIRD_PARTY.md)
+          actual_digest=$(awk '{print $1}' "release-artifacts/librespeed-cli-${CLI_VERSION}-source.tar.gz.sha256")
+          printf '%s\n' "$expected_digest" | grep -Eq '^[0-9a-f]{64}$'
+          test "$actual_digest" = "$expected_digest"
+          mv trivy-source.json release-artifacts/trivy-source.json
+
+      - name: Upload source report and corresponding-source archive
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: release-source-artifacts-${{ github.run_id }}
+          path: release-artifacts/
+          if-no-files-found: error
+          retention-days: 90
+
+  image-publish:
+    needs: [quality, source-scan]
+    if: >-
+      github.repository == 'home-ops/librespeed-exporter' &&
+      (github.event_name == 'schedule' ||
+       (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) ||
+       (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'))
+    runs-on: ubuntu-24.04
+    outputs:
+      digest: ${{ steps.push.outputs.digest }}
+      image: ${{ steps.image.outputs.name }}
+      version: ${{ steps.release.outputs.version }}
+      immutable-tag: ${{ steps.release.outputs.immutable_tag }}
+      timestamp: ${{ steps.release.outputs.timestamp }}
+      created: ${{ steps.release.outputs.created }}
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Check out source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+
+      - name: Compute immutable image coordinates
+        id: release
+        env:
+          REF_NAME: ${{ github.ref_name }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          set -eu
+          if [ "$EVENT_NAME" = push ]; then
+            version=${REF_NAME#v}
+          else
+            version=$(awk -F= '/^ARG VERSION=/ {print $2; exit}' Dockerfile)
+          fi
+          printf '%s\n' "$version" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'
+          timestamp=$(date -u +%Y%m%dT%H%M%SZ)
+          created=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          printf 'version=%s\n' "$version" >> "$GITHUB_OUTPUT"
+          printf 'timestamp=%s\n' "$timestamp" >> "$GITHUB_OUTPUT"
+          printf 'created=%s\n' "$created" >> "$GITHUB_OUTPUT"
+          printf 'immutable_tag=%s-%s-%s-%s\n' \
+            "$version" "$timestamp" "$GITHUB_SHA" "$GITHUB_RUN_ID" \
+            >> "$GITHUB_OUTPUT"
+
+      - name: Log in to GHCR
+        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Push image by digest without assigning tags
+        id: push
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: .
+          platforms: linux/amd64
+          outputs: "type=image,name=${{ env.IMAGE_NAME }},push-by-digest=true,name-canonical=true,push=true"
+          labels: |
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.version=${{ steps.release.outputs.version }}
+            org.opencontainers.image.created=${{ steps.release.outputs.created }}
+            org.opencontainers.image.source=https://github.com/home-ops/librespeed-exporter
+          build-args: |
+            VERSION=${{ steps.release.outputs.version }}
+            CREATED=${{ steps.release.outputs.created }}
+
+      - name: Validate pushed image digest
+        id: image
+        env:
+          DIGEST: ${{ steps.push.outputs.digest }}
+        run: |
+          set -eu
+          printf '%s\n' "$DIGEST" | grep -Eq '^sha256:[0-9a-f]{64}$'
+          printf 'name=%s@%s\n' "$IMAGE_NAME" "$DIGEST" >> "$GITHUB_OUTPUT"
+
+  image-scan:
+    needs: [quality, source-scan, image-publish]
+    outputs:
+      report-sha: ${{ steps.report.outputs.sha }}
+      sbom-sha: ${{ steps.sbom.outputs.sbom_sha }}
+    runs-on: ubuntu-24.04
+    permissions:
+      packages: read
+    steps:
+      - name: Log in to GHCR for scanner reads
+        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Scan exact published digest with Trivy (findings are report-only)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: image
+          image-ref: ${{ needs.image-publish.outputs.image }}
+          scanners: vuln,misconfig,secret
+          format: json
+          output: trivy-image.json
+          exit-code: "0"
+          version: v0.70.0
+
+      - name: Require image report
+        run: test -s trivy-image.json
+
+      - name: Hash image report
+        id: report
+        run: |
+          printf 'sha=%s\n' "$(sha256sum trivy-image.json | awk '{print $1}')" >> "$GITHUB_OUTPUT"
+
+      - name: Generate SPDX JSON SBOM for exact published digest
+        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
+        with:
+          image: ${{ needs.image-publish.outputs.image }}
+          registry-username: ${{ github.actor }}
+          registry-password: ${{ secrets.GITHUB_TOKEN }}
+          format: spdx-json
+          output-file: sbom.spdx.json
+          upload-artifact: false
+          upload-release-assets: false
+
+      - name: Add pinned CLI license inventory and verify SPDX identifiers
+        id: sbom
+        env:
+          CLI_VERSION: ${{ needs.source-scan.outputs.cli-version }}
+          CLI_COMMIT: ${{ needs.source-scan.outputs.cli-commit }}
+        run: |
+          set -eu
+          jq --arg version "$CLI_VERSION" --arg commit "$CLI_COMMIT" '
+            .packages += [{
+              "SPDXID": "SPDXRef-LibreSpeed-CLI",
+              "name": "librespeed-cli",
+              "versionInfo": $version,
+              "downloadLocation": ("https://github.com/librespeed/speedtest-cli/tree/" + $commit),
+              "filesAnalyzed": false,
+              "licenseConcluded": "NOASSERTION",
+              "licenseDeclared": "LGPL-3.0-only AND GPL-3.0-only",
+              "copyrightText": "NOASSERTION"
+            }]
+            | .relationships += [{
+              "spdxElementId": "SPDXRef-DOCUMENT",
+              "relationshipType": "DESCRIBES",
+              "relatedSpdxElement": "SPDXRef-LibreSpeed-CLI"
+            }]
+          ' sbom.spdx.json > sbom.spdx.tmp
+          mv sbom.spdx.tmp sbom.spdx.json
+          jq -e '
+            [.packages[] | select(.SPDXID == "SPDXRef-LibreSpeed-CLI")]
+            | length == 1
+              and .[0].name == "librespeed-cli"
+              and .[0].licenseDeclared == "LGPL-3.0-only AND GPL-3.0-only"
+              and .[0].versionInfo != ""
+              and (.[0].downloadLocation | startswith("https://github.com/librespeed/speedtest-cli/tree/"))
+              and ([.[0].licenseDeclared | split(" ")[] | select(. == "LGPL-3.0-only" or . == "GPL-3.0-only")] | length == 2)
+          ' sbom.spdx.json >/dev/null
+          jq -e '
+            all(.packages[]; (.licenseDeclared // "") != "NOASSERTION" or .name == "librespeed-cli")
+          ' sbom.spdx.json >/dev/null
+          printf 'sbom_sha=%s\n' \
+            "$(sha256sum sbom.spdx.json | awk '{print $1}')" \
+            >> "$GITHUB_OUTPUT"
+
+      - name: Require SBOM
+        run: test -s sbom.spdx.json
+
+      - name: Upload image scan and SBOM
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: release-image-artifacts-${{ github.run_id }}
+          path: |
+            trivy-image.json
+            sbom.spdx.json
+          if-no-files-found: error
+          retention-days: 90
+
+  attest-and-promote:
+    needs: [quality, source-scan, image-publish, image-scan]
+    if: >-
+      github.repository == 'home-ops/librespeed-exporter' &&
+      (github.event_name == 'schedule' ||
+       (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) ||
+       (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'))
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      packages: write
+      attestations: write
+      id-token: write
+    steps:
+      - name: Check out source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Log in to GHCR for signature and attestations
+        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+
+      - name: Download source report and corresponding-source archive
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: release-source-artifacts-${{ github.run_id }}
+          path: source-artifacts
+
+      - name: Download image scan and SBOM
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: release-image-artifacts-${{ github.run_id }}
+          path: image-artifacts
+
+      - name: Check reports and source archive digest
+        env:
+          CLI_VERSION: ${{ needs.source-scan.outputs.cli-version }}
+        run: |
+          set -eu
+          test -s source-artifacts/trivy-source.json
+          test -s image-artifacts/trivy-image.json
+          test -s image-artifacts/sbom.spdx.json
+          archive="librespeed-cli-${CLI_VERSION}-source.tar.gz"
+          test -s "source-artifacts/$archive"
+          (cd source-artifacts && sha256sum --check "$archive.sha256")
+
+      - name: Attest image provenance
+        uses: actions/attest@f7c74d28b9d84cb8768d0b8ca14a4bac6ef463e6 # v4.2.0
+        with:
+          subject-name: ${{ env.IMAGE_NAME }}
+          subject-digest: ${{ needs.image-publish.outputs.digest }}
+          push-to-registry: true
+
+      - name: Attest SPDX SBOM to image digest
+        uses: actions/attest@f7c74d28b9d84cb8768d0b8ca14a4bac6ef463e6 # v4.2.0
+        with:
+          subject-name: ${{ env.IMAGE_NAME }}
+          subject-digest: ${{ needs.image-publish.outputs.digest }}
+          sbom-path: image-artifacts/sbom.spdx.json
+          push-to-registry: true
+
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@d58896d6a1865668819e1d91763c7751a165e159 # v3.9.2
+
+      - name: Sign image digest with GitHub OIDC
+        env:
+          IMAGE: ${{ needs.image-publish.outputs.image }}
+        run: cosign sign --yes "$IMAGE"
+
+      - name: Verify signature, provenance, and SPDX SBOM attestation
+        env:
+          IMAGE: ${{ needs.image-publish.outputs.image }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -eu
+          cosign verify \
+            --certificate-identity "https://github.com/${GITHUB_REPOSITORY}/.github/workflows/release.yaml@${GITHUB_REF}" \
+            --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+            "$IMAGE"
+          gh attestation verify "oci://$IMAGE" \
+            --repo "$GITHUB_REPOSITORY" \
+            --signer-workflow "github.com/$GITHUB_REPOSITORY/.github/workflows/release.yaml" \
+            --source-digest "$GITHUB_SHA" \
+            --predicate-type https://slsa.dev/provenance/v1
+          gh attestation verify "oci://$IMAGE" \
+            --repo "$GITHUB_REPOSITORY" \
+            --signer-workflow "github.com/$GITHUB_REPOSITORY/.github/workflows/release.yaml" \
+            --source-digest "$GITHUB_SHA" \
+            --predicate-type https://spdx.dev/Document/v2.3
+
+      - name: Install Cosign before tag promotion
+        if: always()
+        uses: sigstore/cosign-installer@d58896d6a1865668819e1d91763c7751a165e159 # v3.9.2
+
+      - name: Verify SPDX SBOM transfer and CLI license expression
+        env:
+          EXPECTED_SHA: ${{ needs.image-scan.outputs.sbom-sha }}
+        run: |
+          actual=$(sha256sum image-artifacts/sbom.spdx.json | awk '{print $1}')
+          test "$actual" = "$EXPECTED_SHA"
+          jq -e '
+            [.packages[]? | select(.SPDXID == "SPDXRef-LibreSpeed-CLI")]
+            | length == 1
+              and .[0].licenseDeclared == "LGPL-3.0-only AND GPL-3.0-only"
+          ' image-artifacts/sbom.spdx.json >/dev/null
+
+      - name: Verify image scan report transfer
+        env:
+          EXPECTED_SHA: ${{ needs.image-scan.outputs.report-sha }}
+        run: |
+          actual=$(sha256sum image-artifacts/trivy-image.json | awk '{print $1}')
+          test "$actual" = "$EXPECTED_SHA"
+
+      - name: Publish immutable image tag
+        env:
+          IMAGE: ${{ env.IMAGE_NAME }}
+          DIGEST: ${{ needs.image-publish.outputs.digest }}
+          TAG: ${{ needs.image-publish.outputs.immutable-tag }}
+        run: |
+          set -eu
+          if docker buildx imagetools inspect "$IMAGE:$TAG" >/dev/null 2>&1; then
+            printf 'Refusing to overwrite immutable tag: %s:%s\n' "$IMAGE" "$TAG" >&2
+            exit 1
+          fi
+          docker buildx imagetools create --prefer-index=false \
+            --tag "$IMAGE:$TAG" "$IMAGE@$DIGEST"
+          tag_digest=$(docker buildx imagetools inspect --raw "$IMAGE:$TAG" \
+            | sha256sum | awk '{print "sha256:" $1}')
+          test "$tag_digest" = "$DIGEST"
+
+      - name: Create or update release assets
+        id: release-assets
+        env:
+          IMAGE: ${{ env.IMAGE_NAME }}
+          DIGEST: ${{ needs.image-publish.outputs.digest }}
+          IMAGE_TAG: ${{ needs.image-publish.outputs.immutable-tag }}
+          VERSION: ${{ needs.image-publish.outputs.version }}
+          RELEASE_TAG: ${{ github.event_name == 'push' && github.ref_name || needs.image-publish.outputs.immutable-tag }}
+          CLI_VERSION: ${{ needs.source-scan.outputs.cli-version }}
+          BUILD_TIMESTAMP: ${{ needs.image-publish.outputs.timestamp }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -eu
+          archive="librespeed-cli-${CLI_VERSION}-source.tar.gz"
+          tar --sort=name --mtime='UTC 1970-01-01' --owner=0 --group=0 --numeric-owner \
+            -cf - LICENSES/GO-MODULES | gzip -n > go-module-licenses.tar.gz
+          test -s go-module-licenses.tar.gz
+          notices=(LICENSE LICENSES/GPL-3.0.txt LICENSES/librespeed-cli-LGPL-3.0.txt go-module-licenses.tar.gz THIRD_PARTY.md)
+          assets=(
+            "${notices[@]}"
+            image-artifacts/sbom.spdx.json
+            source-artifacts/trivy-source.json
+            image-artifacts/trivy-image.json
+            "source-artifacts/$archive"
+            "source-artifacts/$archive.sha256"
+          )
+          notes="Immutable image: $IMAGE:$IMAGE_TAG; digest: $IMAGE@$DIGEST; source: $GITHUB_SHA; build timestamp UTC: $BUILD_TIMESTAMP; Trivy image report SHA-256: ${{ needs.image-scan.outputs.report-sha }}"
+          publish_release() {
+            release_tag=$1
+            release_assets=("${notices[@]}")
+            if [ "$release_tag" = "$RELEASE_TAG" ]; then
+              release_assets=("${assets[@]}")
+            fi
+            if [ "$release_tag" = "$IMAGE_TAG" ] && [ "$GITHUB_EVENT_NAME" = push ] && [ "$RELEASE_TAG" = "$IMAGE_TAG" ]; then
+              gh release create "$release_tag" --verify-tag \
+                --target "$GITHUB_SHA" \
+                --title "LibreSpeed Exporter $VERSION ($IMAGE_TAG)" \
+                --notes "$notes" \
+                "${release_assets[@]}"
+            elif gh release view "$release_tag" >/dev/null 2>&1; then
+              gh release upload "$release_tag" --clobber "${release_assets[@]}"
+              gh release edit "$release_tag" \
+                --title "LibreSpeed Exporter $VERSION ($IMAGE_TAG)" \
+                --notes "$notes"
+            else
+              gh release create "$release_tag" \
+                --target "$GITHUB_SHA" \
+                --title "LibreSpeed Exporter $VERSION ($IMAGE_TAG)" \
+                --notes "$notes" \
+                "${release_assets[@]}"
+            fi
+          }
+          publish_release "$IMAGE_TAG"
+          if [ "$RELEASE_TAG" != "$IMAGE_TAG" ]; then
+            publish_release "$RELEASE_TAG"
+          fi
+          release_json=$(gh release view "$RELEASE_TAG" --json url,assets)
+          release_url=$(printf '%s' "$release_json" | jq -r '.url')
+          test -n "$release_url" && test "$release_url" != null
+          image_assets=$(gh release view "$IMAGE_TAG" --json assets | jq -c '[.assets[].name]')
+          release_assets=$(printf '%s' "$release_json" | jq -c '[.assets[].name]')
+          python3 - "$IMAGE_TAG" "$RELEASE_TAG" "$CLI_VERSION" \
+            "$image_assets" "$release_assets" <<'PY'
+          import json
+          import sys
+          from scripts.release_assets import validate_assets
+
+          image_tag, release_tag, cli_version, image_names, release_names = sys.argv[1:]
+          if not validate_assets(
+              image_tag,
+              release_tag,
+              json.loads(image_names),
+              json.loads(release_names),
+              cli_version,
+          ):
+              raise SystemExit("release asset set incomplete for event/tag pair")
+          PY
+          printf 'release-url=%s\n' "$release_url" >> "$GITHUB_OUTPUT"
+
+      - name: Compare candidate metadata and promote latest only when newer
+        id: promote
+        env:
+          IMAGE: ${{ env.IMAGE_NAME }}
+          DIGEST: ${{ needs.image-publish.outputs.digest }}
+          TAG: ${{ needs.image-publish.outputs.immutable-tag }}
+          VERSION: ${{ needs.image-publish.outputs.version }}
+          CREATED: ${{ needs.image-publish.outputs.created }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -eu
+          tagged_digest=$(docker buildx imagetools inspect --raw "$IMAGE:$TAG" \
+            | sha256sum | awk '{print "sha256:" $1}')
+          test "$tagged_digest" = "$DIGEST"
+          python3 scripts/promote_latest.py "$IMAGE" "$DIGEST" "$VERSION" "$CREATED"
+
+      - name: Verify promoted latest points at candidate digest
+        if: steps.promote.outputs.promoted == 'true'
+        env:
+          IMAGE: ${{ env.IMAGE_NAME }}
+          DIGEST: ${{ needs.image-publish.outputs.digest }}
+        run: |
+          latest_digest=$(docker buildx imagetools inspect --raw "$IMAGE:latest" \
+            | sha256sum | awk '{print "sha256:" $1}')
+          test "$latest_digest" = "$DIGEST"
+
+      - name: Summarize verified release
+        env:
+          IMAGE: ${{ env.IMAGE_NAME }}
+          DIGEST: ${{ needs.image-publish.outputs.digest }}
+          TAG: ${{ needs.image-publish.outputs.immutable-tag }}
+          VERSION: ${{ needs.image-publish.outputs.version }}
+          TIMESTAMP: ${{ needs.image-publish.outputs.timestamp }}
+          RELEASE_TAG: ${{ github.event_name == 'push' && github.ref_name || needs.image-publish.outputs.immutable-tag }}
+          CLI_VERSION: ${{ needs.source-scan.outputs.cli-version }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          release_json=$(gh release view "$RELEASE_TAG" --json assets,url)
+          release_url=$(printf '%s' "$release_json" | jq -r '.url')
+          build_release_json=$(gh release view "$TAG" --json assets,url)
+          build_release_url=$(printf '%s' "$build_release_json" | jq -r '.url')
+          {
+            printf '## Verified image release\n\n'
+            printf -- '- Immutable image: `%s:%s`\n' "$IMAGE" "$TAG"
+            printf -- '- Digest: `%s@%s`\n' "$IMAGE" "$DIGEST"
+            printf -- '- Latest: `%s:latest`\n' "$IMAGE"
+            printf -- '- Application version: `%s`\n' "$VERSION"
+            printf -- '- Source revision: `%s`\n' "$GITHUB_SHA"
+            printf -- '- Build timestamp (UTC): `%s`\n' "$TIMESTAMP"
+            printf -- '- GitHub release: %s\n' "$release_url"
+            if [ "$RELEASE_TAG" != "$TAG" ]; then
+              printf -- '- Immutable build release: %s\n' "$build_release_url"
+            fi
+            printf -- '- Assets:\n'
+            printf '%s' "$release_json" | jq -r '.assets[] | "  - [\(.name)](\(.browserDownloadUrl))"'
+            if [ "$RELEASE_TAG" != "$TAG" ]; then
+              printf -- '- Immutable build assets:\n'
+              printf '%s' "$build_release_json" | jq -r '.assets[] | "  - [\(.name)](\(.browserDownloadUrl))"'
+            fi
+            printf -- '- Workflow artifact: `release-source-artifacts-%s` (CLI source archive and source scan)\n' "$GITHUB_RUN_ID"
+            printf -- '- Workflow artifact: `release-image-artifacts-%s` (SBOM and image scan)\n' "$GITHUB_RUN_ID"
+          } >> "$GITHUB_STEP_SUMMARY"
