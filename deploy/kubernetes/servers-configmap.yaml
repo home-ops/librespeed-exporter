@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: librespeed-exporter-servers
+  labels:
+    app.kubernetes.io/name: librespeed-exporter
+data:
+  servers.json: |
+    [
+      {
+        "id": 1,
+        "name": "Replace with trusted LibreSpeed server",
+        "server": "https://speedtest.example.com",
+        "dlURL": "backend/garbage.php",
+        "ulURL": "backend/empty.php",
+        "pingURL": "backend/empty.php",
+        "getIpURL": "backend/getIP.php"
+      }
+    ]

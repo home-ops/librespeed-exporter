@@ -64,7 +64,10 @@ them with real mounted files and hashes to enable either feature.
 
 The exporter does not provide telemetry or send exporter measurements to this
 project. It invokes bundled LibreSpeed CLI with local server-list selection and
-sharing disabled; it does not enable LibreSpeed sharing. The CLI necessarily
+sharing disabled; it does not enable LibreSpeed sharing. The `examples/servers.json`
+file contains a reserved `.invalid` host and is only a schema example; it cannot
+run tests. The Kubernetes placeholder uses `speedtest.example.com` and also
+requires replacement with a real trusted server. The CLI necessarily
 contacts configured test-server URLs and their endpoint paths to perform tests.
 Only configure servers you trust, and review their privacy policies: the remote
 operator can observe your source IP and test traffic. Server configuration may
@@ -105,31 +108,72 @@ probes or an external container health monitor.
 
 ## Kubernetes
 
-Create config and secret from reviewed local files, substitute a verified image
-digest in `deploy/kubernetes/deployment.yaml`, then apply manifests:
+The Kubernetes bundle deploys a single exporter Pod, a ClusterIP Service, a
+servers ConfigMap, and an ingress-only NetworkPolicy. Replace the placeholder
+with a verified immutable GHCR digest in `deploy/kubernetes/deployment.yaml`.
+The bundle defaults to namespace `default`; change `namespace` in its
+`kustomization.yaml` for another namespace.
+
+The committed server list is a placeholder that only makes the bundle render.
+Replace it with a server list you trust before deploying. Review each server's
+privacy policy; its operator sees your source IP and test traffic. Keep private
+server URLs and hostnames out of public repositories. For a local deployment,
+create the ConfigMap from a reviewed local file and apply the remaining
+manifests:
 
 ```sh
 kubectl create configmap librespeed-exporter-servers \
-  --from-file=servers.json=/path/to/servers.json
-kubectl create secret generic librespeed-exporter-web-config \
-  --from-file=web-config.yaml=/path/to/web-config.yaml
-kubectl apply -f deploy/kubernetes/
+  --from-file=servers.json=/path/to/servers.json \
+  --dry-run=client -o yaml > servers-configmap.yaml
+kubectl apply -f deploy/kubernetes/deployment.yaml \
+  -f deploy/kubernetes/service.yaml \
+  -f deploy/kubernetes/networkpolicy.yaml \
+  -f servers-configmap.yaml
 ```
+
+For GitOps, create a private Kustomize overlay with a `configMapGenerator` using
+your reviewed server list. Include the resources from `deploy/kubernetes/`,
+exclude `servers-configmap.yaml`, and generate a ConfigMap named
+`librespeed-exporter-servers`. Never include both the placeholder ConfigMap and
+generated ConfigMap.
 
 The example Service is ClusterIP. The pod runs non-root with read-only root,
 RuntimeDefault seccomp, no added capabilities, resource bounds, and HTTP probes.
 Kubernetes probes use dedicated port `9468`, which serves only `/healthz` and
 `/readyz`; it never serves metrics or carries sensitive data. This fixed listener
 is bound inside the pod, is not declared in the container ports or published by
-the Service, and has no host port. If using a NetworkPolicy or restrictive CNI,
-allow kubelet/node-originated probe traffic to pod TCP/9468 as required by your
-cluster's probe path. The example NetworkPolicy permits TCP/9468 for health-only
-requests; node-originated probes may need a CNI-specific host-endpoint rule.
-Ingress policy permits TCP/9469 only from Prometheus pods labeled
+the Service. The example NetworkPolicy permits inbound TCP/9468 for health
+probes and TCP/9469 only from Prometheus Pods labeled
 `app.kubernetes.io/name: prometheus` in namespace `monitoring`; adapt labels and
-namespace to your cluster. NetworkPolicy enforcement depends on cluster CNI.
-Example intentionally does not set egress policy because portable FQDN egress
-allowlisting is unavailable.
+namespace to your cluster. Verify that policy matches your Prometheus Pod labels.
+The policy does not restrict egress. If your cluster enforces egress policies,
+allow DNS and the configured LibreSpeed server endpoints. Standard Kubernetes
+NetworkPolicy cannot portably allow egress by FQDN. Probe traffic can appear to
+come from node addresses; allow kubelet/node-originated traffic to Pod TCP/9468
+using CNI-specific policy if needed.
+
+The default deployment does not enable `WEB_CONFIG_FILE` and requires no web
+configuration Secret. To enable exporter-toolkit TLS or basic authentication,
+add the `WEB_CONFIG_FILE` environment variable and mount a Secret containing
+`web-config.yaml`; mount any certificate and key files referenced by that
+configuration as Secrets too. The metrics Service then still listens on port
+9469, using the configured TLS/auth behavior.
+
+For Prometheus, configure a scrape target using the Service DNS name and port:
+
+```yaml
+- job_name: librespeed-exporter
+  static_configs:
+    - targets: [librespeed-exporter.<namespace>.svc.cluster.local:9469]
+```
+
+Replace `<namespace>` with the namespace where you deploy the bundle; the
+default is `default`. Scraping reads the latest completed test; it does not
+start a test. Test cadence is
+controlled by `TEST_INTERVAL`, which defaults to `1h` and must be at least `5m`.
+Each test has a `2m` timeout by default. The exporter tests servers immediately
+at startup, sequentially, then waits the configured interval after each full
+cycle.
 
 ## Prometheus And Grafana
 

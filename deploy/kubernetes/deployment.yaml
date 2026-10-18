@@ -33,8 +33,6 @@ spec:
               value: 0.0.0.0:9469
             - name: LIBRESPEED_SERVERS_FILE
               value: /etc/librespeed/servers.json
-            - name: WEB_CONFIG_FILE
-              value: /etc/librespeed/web-config.yaml
             - name: TEST_INTERVAL
               value: 1h
             - name: TEST_TIMEOUT
@@ -60,10 +58,6 @@ spec:
             - name: servers
               mountPath: /etc/librespeed/servers.json
               subPath: servers.json
-              readOnly: true
-            - name: web-config
-              mountPath: /etc/librespeed/web-config.yaml
-              subPath: web-config.yaml
               readOnly: true
           startupProbe:
             httpGet:
@@ -91,10 +85,3 @@ spec:
             items:
               - key: servers.json
                 path: servers.json
-        - name: web-config
-          secret:
-            secretName: librespeed-exporter-web-config
-            defaultMode: 0440
-            items:
-              - key: web-config.yaml
-                path: web-config.yaml

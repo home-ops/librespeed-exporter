@@ -21,13 +21,15 @@ if [ "${1:-}" = "--self-test" ]; then
 fi
 
 json_files="$root/examples/servers.json $root/grafana/librespeed-dashboard.json"
-yaml_files="$root/deploy/docker-compose.yaml $root/deploy/kubernetes/deployment.yaml $root/deploy/kubernetes/service.yaml $root/deploy/kubernetes/networkpolicy.yaml $root/deploy/prometheus/prometheus.yaml $root/examples/web-config.yaml"
+yaml_files="$root/deploy/docker-compose.yaml $root/deploy/kubernetes/deployment.yaml $root/deploy/kubernetes/kustomization.yaml $root/deploy/kubernetes/networkpolicy.yaml $root/deploy/kubernetes/servers-configmap.yaml $root/deploy/kubernetes/service.yaml $root/deploy/prometheus/prometheus.yaml $root/examples/web-config.yaml"
 
 for file in $json_files; do
 	python3 -m json.tool "$file" >/dev/null
 done
 
 ruby -e 'require "yaml"; ARGV.each { |file| YAML.parse_file(file) }' $yaml_files
+
+sh "$root/scripts/check-kubernetes-deploy-test.sh"
 
 python3 - "$root" <<'PY'
 import json
