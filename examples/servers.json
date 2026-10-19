@@ -1,11 +1,11 @@
 [
   {
-    "id": 1,
-    "name": "Example LibreSpeed server",
-    "server": "https://speed.example.invalid",
-    "dlURL": "backend/garbage.php",
-    "ulURL": "backend/empty.php",
-    "pingURL": "backend/empty.php",
-    "getIpURL": "backend/getIP.php"
+    "id": 51,
+    "name": "Amsterdam, Netherlands (Clouvider)",
+    "server": "https://ams.speedtest.clouvider.net/backend",
+    "dlURL": "garbage.php",
+    "ulURL": "empty.php",
+    "pingURL": "empty.php",
+    "getIpURL": "getIP.php"
   }
 ]

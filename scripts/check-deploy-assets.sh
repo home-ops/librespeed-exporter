@@ -38,6 +38,37 @@ import sys
 from pathlib import Path
 
 root = Path(sys.argv[1])
+servers = json.loads((root / "examples/servers.json").read_text())
+if len(servers) != 1:
+    raise SystemExit("Example server list must contain exactly one pinned public server")
+server = servers[0]
+expected_server = {
+    "id": 51,
+    "name": "Amsterdam, Netherlands (Clouvider)",
+    "server": "https://ams.speedtest.clouvider.net/backend",
+    "dlURL": "garbage.php",
+    "ulURL": "empty.php",
+    "pingURL": "empty.php",
+    "getIpURL": "getIP.php",
+}
+if server != expected_server:
+    raise SystemExit("Pinned public example server does not match LibreSpeed.org server id 51")
+
+import subprocess
+
+rendered = subprocess.check_output(["kubectl", "kustomize", str(root / "deploy/kubernetes")], text=True)
+configmap = rendered.split("\n---\n", 1)[0]
+config_data = configmap.split("  servers.json: |\n", 1)[1]
+json_lines = []
+for line in config_data.splitlines():
+    if line.startswith("    "):
+        json_lines.append(line[4:])
+    else:
+        break
+deployed_servers = json.loads("\n".join(json_lines))
+if deployed_servers != servers:
+    raise SystemExit("Kubernetes server ConfigMap must match examples/servers.json")
+
 metrics = (root / "internal/metrics/metrics.go").read_text()
 descriptors = set(re.findall(r'\{"(librespeed_[a-z0-9_]+)"', metrics))
 dashboard = json.loads((root / "grafana/librespeed-dashboard.json").read_text())

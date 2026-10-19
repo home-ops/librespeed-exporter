@@ -42,8 +42,10 @@ contain non-empty array. Each server needs unique non-negative `id`, `name`,
 `server`, `dlURL`, `ulURL`, `pingURL`, and `getIpURL` fields. `server` must be an
 absolute HTTP(S) URL with a host. Endpoint fields must be relative paths, without
 query strings or fragments. Additional JSON fields are accepted. See
-[`examples/servers.json`](examples/servers.json); its reserved `.invalid`
-hostname cannot run a test.
+[`examples/servers.json`](examples/servers.json) for a working single-server
+example. It uses a public test server; review its operator's privacy policy
+before use. For another region or self-hosted backend, replace the entry with
+server details you trust.
 
 | Environment variable | Default | Constraint |
 | --- | --- | --- |
@@ -62,12 +64,16 @@ them with real mounted files and hashes to enable either feature.
 
 ## Privacy And Egress
 
-The exporter does not provide telemetry or send exporter measurements to this
-project. It invokes bundled LibreSpeed CLI with local server-list selection and
-sharing disabled; it does not enable LibreSpeed sharing. The `examples/servers.json`
-file contains a reserved `.invalid` host and is only a schema example; it cannot
-run tests. The Kubernetes placeholder uses `speedtest.example.com` and also
-requires replacement with a real trusted server. The CLI necessarily
+The exporter does not send telemetry or exporter measurements to this project.
+It invokes bundled LibreSpeed CLI with local server-list selection and sharing
+disabled; it does not enable LibreSpeed sharing. Speed tests still send test
+traffic to each configured server. The repository's sample server list pins one
+public server and does not update automatically. LibreSpeed.org
+publishes a live list at
+[`https://librespeed.org/backend-servers/servers.php`](https://librespeed.org/backend-servers/servers.php).
+Use that list to choose a server near your cluster, then copy only that server's
+entry into your configuration. Review the operator and privacy policy first; the
+remote operator sees your cluster's source IP and test traffic. The CLI necessarily
 contacts configured test-server URLs and their endpoint paths to perform tests.
 Only configure servers you trust, and review their privacy policies: the remote
 operator can observe your source IP and test traffic. Server configuration may
@@ -109,17 +115,28 @@ probes or an external container health monitor.
 ## Kubernetes
 
 The Kubernetes bundle deploys a single exporter Pod, a ClusterIP Service, a
-servers ConfigMap, and an ingress-only NetworkPolicy. Replace the placeholder
-with a verified immutable GHCR digest in `deploy/kubernetes/deployment.yaml`.
-The bundle defaults to namespace `default`; change `namespace` in its
-`kustomization.yaml` for another namespace.
+servers ConfigMap, and an ingress-only NetworkPolicy. It starts with one pinned
+public test server: Amsterdam, Netherlands, operated by Clouvider. This is a
+working example, not a location recommendation. The exporter tests it
+immediately at startup and every hour. Each test transfers data and exposes your
+cluster's outbound source IP to the operator. Review [Clouvider's privacy
+policy](https://www.clouvider.com/privacy-and-cookies-policy/) and confirm this is
+acceptable before deploying.
 
-The committed server list is a placeholder that only makes the bundle render.
-Replace it with a server list you trust before deploying. Review each server's
-privacy policy; its operator sees your source IP and test traffic. Keep private
-server URLs and hostnames out of public repositories. For a local deployment,
-create the ConfigMap from a reviewed local file and apply the remaining
-manifests:
+For a closer test point, use the
+[LibreSpeed.org server list](https://librespeed.org/backend-servers/servers.php)
+to choose a server, then replace the sample entry. You can also use a
+self-hosted LibreSpeed server. Replace the sample in
+`deploy/kubernetes/servers-configmap.yaml` before deploying. The copy in
+`examples/servers.json` documents the same server and does not update
+automatically.
+
+Replace the placeholder with a verified immutable GHCR digest in
+`deploy/kubernetes/deployment.yaml`. The bundle defaults to namespace `default`;
+change `namespace` in its `kustomization.yaml` for another namespace.
+
+For a local deployment with a different reviewed server list, create a ConfigMap
+from your local file and apply the remaining manifests:
 
 ```sh
 kubectl create configmap librespeed-exporter-servers \
@@ -131,11 +148,12 @@ kubectl apply -f deploy/kubernetes/deployment.yaml \
   -f servers-configmap.yaml
 ```
 
-For GitOps, create a private Kustomize overlay with a `configMapGenerator` using
-your reviewed server list. Include the resources from `deploy/kubernetes/`,
-exclude `servers-configmap.yaml`, and generate a ConfigMap named
-`librespeed-exporter-servers`. Never include both the placeholder ConfigMap and
-generated ConfigMap.
+For GitOps, create a Kustomize overlay with a `configMapGenerator` using your
+reviewed server list. Include the resources from `deploy/kubernetes/`, exclude
+`servers-configmap.yaml`, and generate a ConfigMap named
+`librespeed-exporter-servers`. Keep private server URLs out of public Git.
+Never include both the sample ConfigMap and a generated ConfigMap with the same
+name.
 
 The example Service is ClusterIP. The pod runs non-root with read-only root,
 RuntimeDefault seccomp, no added capabilities, resource bounds, and HTTP probes.

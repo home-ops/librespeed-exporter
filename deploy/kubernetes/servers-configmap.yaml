@@ -8,12 +8,12 @@ data:
   servers.json: |
     [
       {
-        "id": 1,
-        "name": "Replace with trusted LibreSpeed server",
-        "server": "https://speedtest.example.com",
-        "dlURL": "backend/garbage.php",
-        "ulURL": "backend/empty.php",
-        "pingURL": "backend/empty.php",
-        "getIpURL": "backend/getIP.php"
+        "id": 51,
+        "name": "Amsterdam, Netherlands (Clouvider)",
+        "server": "https://ams.speedtest.clouvider.net/backend",
+        "dlURL": "garbage.php",
+        "ulURL": "empty.php",
+        "pingURL": "empty.php",
+        "getIpURL": "getIP.php"
       }
     ]
