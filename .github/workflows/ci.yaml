@@ -136,7 +136,11 @@ jobs:
             deploy/prometheus/prometheus.yaml examples/web-config.yaml
           promtool check config deploy/prometheus/prometheus.yaml
           promtool check web-config examples/web-config.yaml
-          kubeconform -strict -summary deploy/kubernetes/
+          kubeconform -strict -summary \
+            deploy/kubernetes/deployment.yaml \
+            deploy/kubernetes/networkpolicy.yaml \
+            deploy/kubernetes/servers-configmap.yaml \
+            deploy/kubernetes/service.yaml
 
       - name: Set up Docker Buildx
         #  v3
