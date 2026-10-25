@@ -193,7 +193,13 @@ jobs:
           expected_digest=$(awk -F'`' '/^- Corresponding-source archive SHA-256:/ {print $2; exit}' THIRD_PARTY.md)
           actual_digest=$(awk '{print $1}' "release-artifacts/librespeed-cli-${CLI_VERSION}-source.tar.gz.sha256")
           printf '%s\n' "$expected_digest" | grep -Eq '^[0-9a-f]{64}$'
-          test "$actual_digest" = "$expected_digest"
+          if [ "$actual_digest" != "$expected_digest" ]; then
+            printf 'Source archive checksum mismatch for %s at %s\n' \
+              "$CLI_VERSION" "$CLI_COMMIT" >&2
+            printf 'Expected: %s\nActual:   %s\n' \
+              "$expected_digest" "$actual_digest" >&2
+            exit 1
+          fi
           mv trivy-source.json release-artifacts/trivy-source.json
 
       - name: Upload source report and corresponding-source archive
