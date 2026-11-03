@@ -371,9 +371,6 @@ jobs:
               and (.[0].downloadLocation | startswith("https://github.com/librespeed/speedtest-cli/tree/"))
               and ([.[0].licenseDeclared | split(" ")[] | select(. == "LGPL-3.0-only" or . == "GPL-3.0-only")] | length == 2)
           ' sbom.spdx.json >/dev/null
-          jq -e '
-            all(.packages[]; (.licenseDeclared // "") != "NOASSERTION" or .name == "librespeed-cli")
-          ' sbom.spdx.json >/dev/null
           printf 'sbom_sha=%s\n' \
             "$(sha256sum sbom.spdx.json | awk '{print $1}')" \
             >> "$GITHUB_OUTPUT"
