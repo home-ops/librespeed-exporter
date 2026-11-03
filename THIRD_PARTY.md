@@ -24,7 +24,7 @@ generated module notice set.
 - Corresponding-source archive: unmodified `git archive` of the exact commit
   above, compressed with `gzip -n`; each release includes a `.sha256` sidecar
   generated from that archive and verified before publication.
-- Corresponding-source archive SHA-256: `d55a4da7bf41f07f4b8ec07703978ba0da2944c69af62cbd396be4aa7cea4298`.
+- Corresponding-source archive SHA-256: `51ab45640d0b8ef5518a92c073f4374616df07993c67ad4e9191d2d09395f6af`.
 - Build toolchain: `golang:1.25.8-bookworm`, pinned to OCI index digest
   `sha256:4557cf171e3cdf5053a298d5171b1a5f5734d920260c25f22c79e94760eb2084`.
 - Runtime: `gcr.io/distroless/static-debian12:nonroot`, pinned to OCI index
