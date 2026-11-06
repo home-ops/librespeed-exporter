@@ -472,26 +472,26 @@
             "lineWidth": 2,
             "showPoints": "never"
           },
-          "noValue": "Unavailable after failed attempt",
+          "noValue": "No test yet",
           "unit": "s"
         },
         "overrides": []
       },
       "gridPos": { "h": 7, "w": 8, "x": 8, "y": 25 },
       "id": 12,
-      "description": "Shown only when the latest attempt succeeded; failed CLI attempts currently report zero duration.",
+      "description": "Elapsed duration of the latest attempt, whether it succeeded or failed.",
       "options": {
         "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true },
         "tooltip": { "mode": "multi", "sort": "desc" }
       },
       "targets": [
         {
-          "expr": "librespeed_test_duration_seconds{server_id=~\"$server_id\"} and on(server_id) (librespeed_test_success{server_id=~\"$server_id\"} == 1)",
+          "expr": "librespeed_test_duration_seconds{server_id=~\"$server_id\"} and on(server_id) (librespeed_test_last_attempt_timestamp_seconds{server_id=~\"$server_id\"} > 0)",
           "legendFormat": "duration {{server_id}}",
           "refId": "A"
         }
       ],
-      "title": "Successful test duration",
+      "title": "Test duration",
       "type": "timeseries"
     },
     {
