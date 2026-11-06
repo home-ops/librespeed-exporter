@@ -91,6 +91,36 @@ egress restrictions are required. DNS and server-address changes can make
 static rules brittle. NetworkPolicy/CNI rules may also need to allow kubelet or
 node probe traffic to the health-only pod port described below.
 
+## Choosing a Test Server
+
+Choose based on the network path from your cluster, not your workstation. A nearby
+location is a useful first filter, but routing, peering, server load, and capacity
+also affect results. Measurements describe the cluster's path to the selected
+server; they do not measure an ISP plan or guarantee available bandwidth.
+
+Treat the LibreSpeed.org server list as a discovery source, not an endorsement.
+Check each operator's terms and privacy policy before sending recurring test
+traffic. The operator can observe your cluster's outbound IP and test traffic.
+Disabling LibreSpeed sharing does not control server-side network or access logs.
+
+For California, look for a current Los Angeles entry. For example, the list
+currently includes Sharktech server ID `91`; verify that entry and review
+[Sharktech's privacy policy](https://sharktech.net/privacy-policy/) before using
+it. This example is not an endorsement or a performance guarantee, and
+server-list entries can change.
+
+Start with one reviewed server. To compare candidates, configure multiple
+entries and compare measurements from the cluster. Tests run sequentially for
+every configured server at startup and after each full-cycle interval, so each
+additional server adds test traffic. Remove candidates you do not need after
+comparison. Keep server IDs stable so Prometheus history and dashboard labels
+continue to refer to the same target.
+
+Copy reviewed server entries into your local server-list file instead of
+automatically loading the live list. If no public operator meets your
+requirements, use a self-hosted LibreSpeed server; this project runs the
+exporter and CLI, but does not host a test server.
+
 ## Docker Compose
 
 Use immutable image reference by digest, not mutable tag:
