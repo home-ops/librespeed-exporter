@@ -83,7 +83,7 @@ counter_names = (
     "librespeed_bytes_received_total",
 )
 covered = [
-    f'count by (server_id) (count_over_time({name}{selector}[$__range]) >= 2)'
+    f'(min by (server_id) (count_over_time({name}{selector}[$__range])) >= 2)'
     for name in counter_names
 ]
 coverage = f'count({" and on(server_id) ".join(covered)} and on(server_id) count by (server_id) ({inventory})) == {configured}'
