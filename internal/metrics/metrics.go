@@ -26,30 +26,39 @@ type serverState struct {
 	lastSuccessTimestampSeconds float64
 	success                     float64
 	failures                    float64
+	attempts                    float64
+	successes                   float64
+	bytesSentTotal              float64
+	bytesReceivedTotal          float64
 }
 
 type StateStore struct {
 	mu     sync.RWMutex
 	ids    []int
 	states map[int]serverState
-	descs  [11]*prometheus.Desc
+	descs  [15]*prometheus.Desc
 }
 
 var metricDefinitions = [...]struct {
-	name string
-	help string
+	name       string
+	help       string
+	metricType prometheus.ValueType
 }{
-	{"librespeed_download_bits_per_second", "Download rate from latest successful test, in bits per second."},
-	{"librespeed_upload_bits_per_second", "Upload rate from latest successful test, in bits per second."},
-	{"librespeed_ping_seconds", "Ping from latest successful test, in seconds."},
-	{"librespeed_jitter_seconds", "Jitter from latest successful test, in seconds."},
-	{"librespeed_bytes_sent", "Bytes sent during latest successful test."},
-	{"librespeed_bytes_received", "Bytes received during latest successful test."},
-	{"librespeed_test_duration_seconds", "Duration of latest test attempt, in seconds."},
-	{"librespeed_test_last_attempt_timestamp_seconds", "Unix timestamp of latest test attempt, in seconds."},
-	{"librespeed_test_last_success_timestamp_seconds", "Unix timestamp of latest successful test, in seconds."},
-	{"librespeed_test_success", "1 if latest test attempt succeeded, otherwise 0."},
-	{"librespeed_test_failures_total", "Cumulative failed test attempts since process start."},
+	{"librespeed_download_bits_per_second", "Download rate from latest successful test, in bits per second.", prometheus.GaugeValue},
+	{"librespeed_upload_bits_per_second", "Upload rate from latest successful test, in bits per second.", prometheus.GaugeValue},
+	{"librespeed_ping_seconds", "Ping from latest successful test, in seconds.", prometheus.GaugeValue},
+	{"librespeed_jitter_seconds", "Jitter from latest successful test, in seconds.", prometheus.GaugeValue},
+	{"librespeed_bytes_sent", "Bytes sent during latest successful test.", prometheus.GaugeValue},
+	{"librespeed_bytes_received", "Bytes received during latest successful test.", prometheus.GaugeValue},
+	{"librespeed_test_duration_seconds", "Duration of latest test attempt, in seconds.", prometheus.GaugeValue},
+	{"librespeed_test_last_attempt_timestamp_seconds", "Unix timestamp of latest test attempt, in seconds.", prometheus.GaugeValue},
+	{"librespeed_test_last_success_timestamp_seconds", "Unix timestamp of latest successful test, in seconds.", prometheus.GaugeValue},
+	{"librespeed_test_success", "1 if latest test attempt succeeded, otherwise 0.", prometheus.GaugeValue},
+	{"librespeed_test_failures_total", "Cumulative failed test attempts since process start.", prometheus.CounterValue},
+	{"librespeed_test_attempts_total", "Cumulative test attempts since process start.", prometheus.CounterValue},
+	{"librespeed_test_successes_total", "Cumulative successful test attempts since process start.", prometheus.CounterValue},
+	{"librespeed_bytes_sent_total", "Cumulative bytes sent in successful tests since process start.", prometheus.CounterValue},
+	{"librespeed_bytes_received_total", "Cumulative bytes received in successful tests since process start.", prometheus.CounterValue},
 }
 
 func NewStore(serverIDs []int) *StateStore {
@@ -76,6 +85,7 @@ func (s *StateStore) RecordAttempt(serverID int, result speedtest.Result, err er
 	}
 	state.durationSeconds = result.Duration.Seconds()
 	state.lastAttemptTimestampSeconds = float64(attemptedAt.UnixNano()) / float64(time.Second)
+	state.attempts++
 	if err != nil {
 		state.success = 0
 		state.failures++
@@ -88,6 +98,9 @@ func (s *StateStore) RecordAttempt(serverID int, result speedtest.Result, err er
 	state.jitterSeconds = result.JitterSeconds
 	state.bytesSent = float64(result.BytesSent)
 	state.bytesReceived = float64(result.BytesReceived)
+	state.successes++
+	state.bytesSentTotal += float64(result.BytesSent)
+	state.bytesReceivedTotal += float64(result.BytesReceived)
 	state.lastSuccessTimestampSeconds = state.lastAttemptTimestampSeconds
 	state.success = 1
 	s.states[serverID] = state
@@ -124,13 +137,13 @@ func (s *StateStore) Collect(ch chan<- prometheus.Metric) {
 			state.lastSuccessTimestampSeconds,
 			state.success,
 			state.failures,
+			state.attempts,
+			state.successes,
+			state.bytesSentTotal,
+			state.bytesReceivedTotal,
 		}
 		for i, value := range values {
-			metricType := prometheus.GaugeValue
-			if i == len(values)-1 {
-				metricType = prometheus.CounterValue
-			}
-			ch <- prometheus.MustNewConstMetric(s.descs[i], metricType, value, strconv.Itoa(id))
+			ch <- prometheus.MustNewConstMetric(s.descs[i], metricDefinitions[i].metricType, value, strconv.Itoa(id))
 		}
 	}
 }

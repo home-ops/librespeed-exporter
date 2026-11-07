@@ -33,6 +33,10 @@ func TestStoreSeedsMetricContract(t *testing.T) {
 		"librespeed_test_last_success_timestamp_seconds": dto.MetricType_GAUGE,
 		"librespeed_test_success":                        dto.MetricType_GAUGE,
 		"librespeed_test_failures_total":                 dto.MetricType_COUNTER,
+		"librespeed_test_attempts_total":                 dto.MetricType_COUNTER,
+		"librespeed_test_successes_total":                dto.MetricType_COUNTER,
+		"librespeed_bytes_sent_total":                    dto.MetricType_COUNTER,
+		"librespeed_bytes_received_total":                dto.MetricType_COUNTER,
 	}
 	if len(families) != len(want) {
 		t.Fatalf("got %d metric families, want %d", len(families), len(want))
@@ -92,6 +96,10 @@ func TestStoreRecordsSuccessfulAttempt(t *testing.T) {
 		"librespeed_test_last_success_timestamp_seconds": float64(attemptedAt.Unix()),
 		"librespeed_test_success":                        1,
 		"librespeed_test_failures_total":                 0,
+		"librespeed_test_attempts_total":                 1,
+		"librespeed_test_successes_total":                1,
+		"librespeed_bytes_sent_total":                    123,
+		"librespeed_bytes_received_total":                456,
 	}
 	for _, family := range families {
 		if got := metricValue(family.Metric[0], family.GetType()); got != want[family.GetName()] {
@@ -113,7 +121,7 @@ func TestStoreRetainsLastGoodValuesAfterFailure(t *testing.T) {
 		Duration:              5 * time.Second,
 	}
 	store.RecordAttempt(3, result, nil, firstAttempt)
-	store.RecordAttempt(3, speedtest.Result{Duration: 2 * time.Second}, errors.New("private endpoint failure"), firstAttempt.Add(time.Minute))
+	store.RecordAttempt(3, speedtest.Result{BytesSent: 31, BytesReceived: 47, Duration: 2 * time.Second}, errors.New("private endpoint failure"), firstAttempt.Add(time.Minute))
 
 	families := gather(t, store)
 	wantValues := map[string]float64{
@@ -128,10 +136,35 @@ func TestStoreRetainsLastGoodValuesAfterFailure(t *testing.T) {
 		"librespeed_test_last_success_timestamp_seconds": float64(firstAttempt.Unix()),
 		"librespeed_test_success":                        0,
 		"librespeed_test_failures_total":                 1,
+		"librespeed_test_attempts_total":                 2,
+		"librespeed_test_successes_total":                1,
+		"librespeed_bytes_sent_total":                    100,
+		"librespeed_bytes_received_total":                200,
 	}
 	for _, family := range families {
 		if got := metricValue(family.Metric[0], family.GetType()); got != wantValues[family.GetName()] {
 			t.Errorf("%s = %v, want %v", family.GetName(), got, wantValues[family.GetName()])
+		}
+	}
+}
+
+func TestStoreAccumulatesTransferTotalsAcrossSuccesses(t *testing.T) {
+	store := NewStore([]int{9})
+	store.RecordAttempt(9, speedtest.Result{BytesSent: 123, BytesReceived: 456}, nil, time.Unix(1_700_000_000, 0))
+	store.RecordAttempt(9, speedtest.Result{BytesSent: 7, BytesReceived: 8}, nil, time.Unix(1_700_000_060, 0))
+
+	families := gather(t, store)
+	want := map[string]float64{
+		"librespeed_bytes_sent":           7,
+		"librespeed_bytes_received":       8,
+		"librespeed_bytes_sent_total":     130,
+		"librespeed_bytes_received_total": 464,
+	}
+	for _, family := range families {
+		if value, ok := want[family.GetName()]; ok {
+			if got := metricValue(family.Metric[0], family.GetType()); got != value {
+				t.Errorf("%s = %v, want %v", family.GetName(), got, value)
+			}
 		}
 	}
 }
@@ -159,7 +192,7 @@ func TestCollectDoesNotHoldStoreLockWhileSending(t *testing.T) {
 	}
 
 	go func() {
-		for range 10 {
+		for range 14 {
 			<-collected
 		}
 	}()

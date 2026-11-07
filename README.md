@@ -28,10 +28,15 @@ are bytes, durations are seconds, and timestamps are Unix seconds.
 | `librespeed_test_last_success_timestamp_seconds` | Gauge | Time of latest success; zero before first success |
 | `librespeed_test_success` | Gauge | One for latest successful attempt, otherwise zero |
 | `librespeed_test_failures_total` | Counter | Failed attempts since process start |
+| `librespeed_test_attempts_total` | Counter | All test attempts since process start |
+| `librespeed_test_successes_total` | Counter | Successful test attempts since process start |
+| `librespeed_bytes_sent_total` | Counter | Bytes sent in successful tests since process start |
+| `librespeed_bytes_received_total` | Counter | Bytes received in successful tests since process start |
 
 Failed tests preserve last-good measurement gauges and last-success time, while
-setting latest-attempt status to failure. Metric state and failure counts reset
-when process restarts. `/healthz` reports process health; `/readyz` reports
+setting latest-attempt status to failure. Byte counters include successful tests
+only. Counter values reset when process restarts, and pre-deployment history
+cannot be reconstructed. `/healthz` reports process health; `/readyz` reports
 configuration/scheduler readiness and does not require successful Internet
 tests.
 
@@ -233,7 +238,18 @@ Import [`grafana/librespeed-dashboard.json`](grafana/librespeed-dashboard.json)
 in Grafana, choose Prometheus datasource, and select server IDs. Dashboard has
 download/upload gauges, a lower-is-better ping bar, scrape and attempt status,
 throughput and latency history, failures, freshness, duration, and transfer
-volume. Uninitialized timestamps are hidden until the first attempt or success.
+volume. KPI panels show configured versus tested server coverage and success
+rate. Rounded estimates cover attempts, successes, failures, and upload/download
+byte totals for the selected time range. Prometheus `increase()` uses range-edge
+extrapolation, and rounding can make displayed totals differ from actual test
+totals. Byte totals include successful tests only. Counter history is unavailable
+before the exporter counter rollout, so earlier ranges can undercount or omit KPI
+values. Counter KPIs require at least two samples for every selected configured
+server; until then, the configured count remains visible but counter values are
+unavailable, not zero. A test completed before the first scrape after startup or
+restart may be missed by `increase()`, including its successful transfer bytes.
+Deploy a counter-enabled exporter image before using these panels. Uninitialized
+timestamps are hidden until the first attempt or success.
 Attempt outcome history shows sampled status, not a per-test event log.
 
 ## Release Verification
