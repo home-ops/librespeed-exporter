@@ -238,8 +238,13 @@ Import [`grafana/librespeed-dashboard.json`](grafana/librespeed-dashboard.json)
 in Grafana, choose Prometheus datasource, and select server IDs. Dashboard has
 download/upload gauges, a lower-is-better ping bar, scrape and attempt status,
 throughput and latency history, failures, freshness, duration, and transfer
-volume. Uninitialized timestamps are hidden until the first attempt or success.
-Attempt outcome history shows sampled status, not a per-test event log.
+volume. KPI panels show configured versus tested server coverage, attempt,
+success, and failure counts, success rate, and upload/download byte totals for
+the selected time range. Byte totals include successful tests only. Windowed
+counters have no history before the exporter counter rollout, so ranges before
+that rollout can undercount or omit KPI values. Uninitialized timestamps are
+hidden until the first attempt or success. Attempt outcome history shows sampled
+status, not a per-test event log.
 
 ## Release Verification
 

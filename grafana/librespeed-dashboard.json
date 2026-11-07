@@ -15,7 +15,7 @@
       }
     ]
   },
-  "description": "Operations view for speed, latency, test health, freshness, and transfer volume.",
+  "description": "Operations view for speed, latency, test health, freshness, and transfer volume. KPI panels summarize selected-range counter increases; byte totals include successful tests only, and counter history is unavailable before exporter rollout.",
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 1,
@@ -24,10 +24,195 @@
   "panels": [
     {
       "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "description": "Servers tested in the selected range compared with the configured server inventory.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "decimals": 0,
+          "noValue": "No tests in range",
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 5, "w": 6, "x": 0, "y": 0 },
+      "id": 16,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "showPercentChange": false,
+        "textMode": "value_and_name"
+      },
+      "targets": [
+        {
+          "expr": "count(sum by (server_id) (increase(librespeed_test_attempts_total{server_id=~\"$server_id\"}[$__range])) > 0)",
+          "instant": true,
+          "legendFormat": "Tested",
+          "refId": "A"
+        },
+        {
+          "expr": "count(librespeed_test_success{server_id=~\"$server_id\"})",
+          "instant": true,
+          "legendFormat": "Configured",
+          "refId": "B"
+        }
+      ],
+      "title": "Servers used",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "description": "Attempts, successes, and failures counted within the selected range.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "decimals": 0,
+          "noValue": "No tests in range",
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 5, "w": 6, "x": 6, "y": 0 },
+      "id": 17,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "showPercentChange": false,
+        "textMode": "value_and_name"
+      },
+      "targets": [
+        {
+          "expr": "round(sum(increase(librespeed_test_attempts_total{server_id=~\"$server_id\"}[$__range])))",
+          "instant": true,
+          "legendFormat": "Attempts",
+          "refId": "A"
+        },
+        {
+          "expr": "round(sum(increase(librespeed_test_successes_total{server_id=~\"$server_id\"}[$__range])))",
+          "instant": true,
+          "legendFormat": "Succeeded",
+          "refId": "B"
+        },
+        {
+          "expr": "round(sum(increase(librespeed_test_failures_total{server_id=~\"$server_id\"}[$__range])))",
+          "instant": true,
+          "legendFormat": "Failed",
+          "refId": "C"
+        }
+      ],
+      "title": "Tests in range",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "description": "Successful tests divided by attempts in the selected range. No value appears when the range has zero attempts.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "decimals": 1,
+          "noValue": "No tests in range",
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 5, "w": 4, "x": 12, "y": 0 },
+      "id": 18,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "showPercentChange": false,
+        "textMode": "value_and_name"
+      },
+      "targets": [
+        {
+          "expr": "(100 * sum(increase(librespeed_test_successes_total{server_id=~\"$server_id\"}[$__range])) / sum(increase(librespeed_test_attempts_total{server_id=~\"$server_id\"}[$__range]))) and (sum(increase(librespeed_test_attempts_total{server_id=~\"$server_id\"}[$__range])) > 0)",
+          "instant": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Success rate",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "description": "Bytes sent by successful tests in the selected range. Pre-deployment counter history is unavailable.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "decimals": 0,
+          "noValue": "No successful tests in range",
+          "unit": "bytes"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 5, "w": 4, "x": 16, "y": 0 },
+      "id": 19,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "showPercentChange": false,
+        "textMode": "value_and_name"
+      },
+      "targets": [
+        {
+          "expr": "round(sum(increase(librespeed_bytes_sent_total{server_id=~\"$server_id\"}[$__range])))",
+          "instant": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Data uploaded",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "description": "Bytes received by successful tests in the selected range. Pre-deployment counter history is unavailable.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "decimals": 0,
+          "noValue": "No successful tests in range",
+          "unit": "bytes"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 5, "w": 4, "x": 20, "y": 0 },
+      "id": 20,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "showPercentChange": false,
+        "textMode": "value_and_name"
+      },
+      "targets": [
+        {
+          "expr": "round(sum(increase(librespeed_bytes_received_total{server_id=~\"$server_id\"}[$__range])))",
+          "instant": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Data downloaded",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
       "description": "Fixed 0–1 Gbps scale. Value is from the latest successful test.",
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "fixed", "fixedColor": "#50c2ff" },
+          "color": { "mode": "continuous-BlPu" },
           "max": 1000000000,
           "min": 0,
           "noValue": "No successful test",
@@ -35,12 +220,12 @@
         },
         "overrides": []
       },
-      "gridPos": { "h": 8, "w": 6, "x": 0, "y": 0 },
+      "gridPos": { "h": 8, "w": 6, "x": 0, "y": 5 },
       "id": 1,
       "options": {
         "barShape": "rounded",
         "barWidthFactor": 0.54,
-        "effects": { "barGlow": false, "centerGlow": false, "gradient": false },
+        "effects": { "barGlow": false, "centerGlow": false, "gradient": true },
         "endpointMarker": "point",
         "minVizHeight": 75,
         "minVizWidth": 75,
@@ -69,7 +254,7 @@
       "description": "Fixed 0–1 Gbps scale. Value is from the latest successful test.",
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "fixed", "fixedColor": "#a78bfa" },
+          "color": { "mode": "continuous-BlPu" },
           "max": 1000000000,
           "min": 0,
           "noValue": "No successful test",
@@ -77,12 +262,12 @@
         },
         "overrides": []
       },
-      "gridPos": { "h": 8, "w": 6, "x": 6, "y": 0 },
+      "gridPos": { "h": 8, "w": 6, "x": 6, "y": 5 },
       "id": 2,
       "options": {
         "barShape": "rounded",
         "barWidthFactor": 0.54,
-        "effects": { "barGlow": false, "centerGlow": false, "gradient": false },
+        "effects": { "barGlow": false, "centerGlow": false, "gradient": true },
         "endpointMarker": "point",
         "minVizHeight": 75,
         "minVizWidth": 75,
@@ -129,7 +314,7 @@
         },
         "overrides": []
       },
-      "gridPos": { "h": 8, "w": 6, "x": 12, "y": 0 },
+      "gridPos": { "h": 8, "w": 6, "x": 12, "y": 5 },
       "id": 3,
       "options": {
         "displayMode": "gradient",
@@ -181,7 +366,7 @@
         },
         "overrides": []
       },
-      "gridPos": { "h": 8, "w": 6, "x": 18, "y": 0 },
+      "gridPos": { "h": 8, "w": 6, "x": 18, "y": 5 },
       "id": 4,
       "options": {
         "colorMode": "background",
@@ -206,10 +391,11 @@
       "description": "Prometheus samples the latest successful measurements. Failed tests retain stale values; check attempt status and success age.",
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "palette-classic" },
+          "color": { "mode": "continuous-BlPu" },
           "custom": {
             "drawStyle": "line",
             "fillOpacity": 12,
+            "gradientMode": "scheme",
             "lineInterpolation": "smooth",
             "lineWidth": 2,
             "showPoints": "never"
@@ -218,7 +404,7 @@
         },
         "overrides": []
       },
-      "gridPos": { "h": 9, "w": 16, "x": 0, "y": 8 },
+      "gridPos": { "h": 9, "w": 16, "x": 0, "y": 13 },
       "id": 5,
       "options": {
         "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true },
@@ -265,7 +451,7 @@
         },
         "overrides": []
       },
-      "gridPos": { "h": 4, "w": 8, "x": 16, "y": 8 },
+      "gridPos": { "h": 4, "w": 8, "x": 16, "y": 13 },
       "id": 6,
       "options": {
         "colorMode": "background",
@@ -304,7 +490,7 @@
         },
         "overrides": []
       },
-      "gridPos": { "h": 5, "w": 4, "x": 16, "y": 12 },
+      "gridPos": { "h": 5, "w": 4, "x": 16, "y": 17 },
       "id": 7,
       "options": {
         "colorMode": "value",
@@ -330,7 +516,7 @@
         "defaults": { "decimals": 0, "noValue": "No test yet", "unit": "s" },
         "overrides": []
       },
-      "gridPos": { "h": 5, "w": 4, "x": 20, "y": 12 },
+      "gridPos": { "h": 5, "w": 4, "x": 20, "y": 17 },
       "id": 8,
       "options": {
         "colorMode": "value",
@@ -366,7 +552,7 @@
         },
         "overrides": []
       },
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 17 },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 22 },
       "id": 9,
       "options": {
         "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true },
@@ -412,7 +598,7 @@
         },
         "overrides": []
       },
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 17 },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 22 },
       "id": 10,
       "options": {
         "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true },
@@ -444,7 +630,7 @@
         },
         "overrides": []
       },
-      "gridPos": { "h": 7, "w": 8, "x": 0, "y": 25 },
+      "gridPos": { "h": 7, "w": 8, "x": 0, "y": 30 },
       "id": 11,
       "options": {
         "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true },
@@ -477,7 +663,7 @@
         },
         "overrides": []
       },
-      "gridPos": { "h": 7, "w": 8, "x": 8, "y": 25 },
+      "gridPos": { "h": 7, "w": 8, "x": 8, "y": 30 },
       "id": 12,
       "description": "Elapsed duration of the latest attempt, whether it succeeded or failed.",
       "options": {
@@ -511,7 +697,7 @@
         },
         "overrides": []
       },
-      "gridPos": { "h": 7, "w": 8, "x": 16, "y": 25 },
+      "gridPos": { "h": 7, "w": 8, "x": 16, "y": 30 },
       "id": 13,
       "options": {
         "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true },
@@ -548,7 +734,7 @@
         },
         "overrides": []
       },
-      "gridPos": { "h": 7, "w": 12, "x": 0, "y": 32 },
+      "gridPos": { "h": 7, "w": 12, "x": 0, "y": 37 },
       "id": 14,
       "options": {
         "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true },
@@ -580,7 +766,7 @@
         },
         "overrides": []
       },
-      "gridPos": { "h": 7, "w": 12, "x": 12, "y": 32 },
+      "gridPos": { "h": 7, "w": 12, "x": 12, "y": 37 },
       "id": 15,
       "options": {
         "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true },
