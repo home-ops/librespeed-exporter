@@ -74,22 +74,40 @@ descriptors = set(re.findall(r'\{"(librespeed_[a-z0-9_]+)"', metrics))
 dashboard = json.loads((root / "grafana/librespeed-dashboard.json").read_text())
 panels = {panel.get("id"): panel for panel in dashboard.get("panels", [])}
 panels_by_title = {panel.get("title"): panel for panel in dashboard.get("panels", [])}
+selector = '{server_id=~"$server_id"}'
+inventory = f'librespeed_test_success{selector}'
+configured = f'count(count by (server_id) ({inventory}))'
+counter_names = (
+    "librespeed_test_attempts_total", "librespeed_test_successes_total",
+    "librespeed_test_failures_total", "librespeed_bytes_sent_total",
+    "librespeed_bytes_received_total",
+)
+covered = [
+    f'count by (server_id) (count_over_time({name}{selector}[$__range]) >= 2)'
+    for name in counter_names
+]
+coverage = f'count({" and on(server_id) ".join(covered)} and on(server_id) count by (server_id) ({inventory})) == {configured}'
+gate = f' and on() ({coverage})'
+
+def increase(name):
+    return f'increase({name}{selector}[$__range]) and on(server_id) {inventory}'
+
 expected_kpis = {
     16: ("Servers used", (0, 6), [
-        'count(sum by (server_id) (increase(librespeed_test_attempts_total{server_id=~"$server_id"}[$__range])) > 0) or vector(0)',
-        'count(librespeed_test_success{server_id=~"$server_id"})',
+        f'(count(sum by (server_id) ({increase(counter_names[0])}) > 0) or vector(0)){gate}',
+        configured,
     ]),
     17: ("Tests in range", (6, 6), [
-        'round(sum(increase(librespeed_test_attempts_total{server_id=~"$server_id"}[$__range])))',
-        'round(sum(increase(librespeed_test_successes_total{server_id=~"$server_id"}[$__range])))',
-        'round(sum(increase(librespeed_test_failures_total{server_id=~"$server_id"}[$__range])))',
+        f'round(sum({increase(counter_names[0])})){gate}',
+        f'round(sum({increase(counter_names[1])})){gate}',
+        f'round(sum({increase(counter_names[2])})){gate}',
     ]),
     18: ("Success rate", (12, 4), []),
     19: ("Data uploaded", (16, 4), [
-        'round(sum(increase(librespeed_bytes_sent_total{server_id=~"$server_id"}[$__range])))',
+        f'round(sum({increase(counter_names[3])})){gate}',
     ]),
     20: ("Data downloaded", (20, 4), [
-        'round(sum(increase(librespeed_bytes_received_total{server_id=~"$server_id"}[$__range])))',
+        f'round(sum({increase(counter_names[4])})){gate}',
     ]),
 }
 for panel_id, (title, position, expressions) in expected_kpis.items():
@@ -156,11 +174,18 @@ for panel_id in (17, 19, 20):
     description = panels[panel_id].get("description", "").lower()
     if "estimate" not in description or "range edge" not in description:
         raise SystemExit(f"Dashboard KPI {panels[panel_id]['title']} must explain rounded range-edge estimates")
+    if panels[panel_id].get("fieldConfig", {}).get("defaults", {}).get("noValue") != "Waiting for counter samples":
+        raise SystemExit(f"Dashboard KPI {panels[panel_id]['title']} must show waiting for incomplete samples")
+
+for panel_id in range(16, 21):
+    description = panels[panel_id].get("description", "").lower()
+    if "two samples" not in description or "first scrape" not in description:
+        raise SystemExit(f"Dashboard KPI {panels[panel_id]['title']} must explain sample coverage and startup loss")
 
 success_rate = panels[18]["targets"][0].get("expr", "") if 18 in panels else ""
 normalized_rate = re.sub(r"\s+", " ", success_rate).strip()
-expected_rate = '(100*sum(increase(librespeed_test_successes_total{server_id=~"$server_id"}[$__range]))/sum(increase(librespeed_test_attempts_total{server_id=~"$server_id"}[$__range])))and(sum(increase(librespeed_test_attempts_total{server_id=~"$server_id"}[$__range]))>0)'
-if re.sub(r"\s+", "", normalized_rate) != expected_rate:
+expected_rate = f'(100 * sum({increase(counter_names[1])}) / sum({increase(counter_names[0])})) and (sum({increase(counter_names[0])}) > 0){gate}'
+if re.sub(r"\s+", "", normalized_rate) != re.sub(r"\s+", "", expected_rate):
     raise SystemExit("Dashboard success rate must omit zero-attempt windows")
 if len(panels.get(18, {}).get("targets", [])) != 1:
     raise SystemExit("Dashboard success rate must have one target")
@@ -174,6 +199,8 @@ for title in ("Data uploaded", "Data downloaded"):
     defaults = panel.get("fieldConfig", {}).get("defaults", {})
     if defaults.get("unit") != "bytes" or defaults.get("decimals") != 0:
         raise SystemExit(f"Dashboard KPI {title} must display rounded bytes")
+    if defaults.get("color") != {"mode": "continuous-BlPu"}:
+        raise SystemExit(f"Dashboard KPI {title} must use neutral continuous-BlPu coloring")
 
 for panel_id in range(1, 16):
     panel = panels.get(panel_id)
@@ -196,7 +223,7 @@ for panel_id in (3, 4):
     if panels[panel_id].get("fieldConfig", {}).get("defaults", {}).get("color", {}).get("mode") != "thresholds":
         raise SystemExit(f"Dashboard panel {panel_id} must preserve threshold colors")
 readme = re.sub(r"\s+", " ", (root / "README.md").read_text().lower())
-for phrase in ("estimates", "range-edge extrapolation", "rounding", "successful tests only", "counter rollout"):
+for phrase in ("estimates", "range-edge extrapolation", "rounding", "successful tests only", "counter rollout", "two samples", "first scrape"):
     if phrase not in readme:
         raise SystemExit(f"README dashboard description must explain {phrase}")
 queries = [

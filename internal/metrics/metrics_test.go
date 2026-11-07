@@ -121,7 +121,7 @@ func TestStoreRetainsLastGoodValuesAfterFailure(t *testing.T) {
 		Duration:              5 * time.Second,
 	}
 	store.RecordAttempt(3, result, nil, firstAttempt)
-	store.RecordAttempt(3, speedtest.Result{Duration: 2 * time.Second}, errors.New("private endpoint failure"), firstAttempt.Add(time.Minute))
+	store.RecordAttempt(3, speedtest.Result{BytesSent: 31, BytesReceived: 47, Duration: 2 * time.Second}, errors.New("private endpoint failure"), firstAttempt.Add(time.Minute))
 
 	families := gather(t, store)
 	wantValues := map[string]float64{

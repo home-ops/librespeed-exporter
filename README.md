@@ -244,7 +244,12 @@ byte totals for the selected time range. Prometheus `increase()` uses range-edge
 extrapolation, and rounding can make displayed totals differ from actual test
 totals. Byte totals include successful tests only. Counter history is unavailable
 before the exporter counter rollout, so earlier ranges can undercount or omit KPI
-values. Uninitialized timestamps are hidden until the first attempt or success.
+values. Counter KPIs require at least two samples for every selected configured
+server; until then, the configured count remains visible but counter values are
+unavailable, not zero. A test completed before the first scrape after startup or
+restart may be missed by `increase()`, including its successful transfer bytes.
+Deploy a counter-enabled exporter image before using these panels. Uninitialized
+timestamps are hidden until the first attempt or success.
 Attempt outcome history shows sampled status, not a per-test event log.
 
 ## Release Verification
