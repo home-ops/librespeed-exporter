@@ -15,7 +15,7 @@
       }
     ]
   },
-  "description": "Operations view for speed, latency, test health, freshness, and transfer volume. KPI panels summarize selected-range counter increases; byte totals include successful tests only, and counter history is unavailable before exporter rollout.",
+  "description": "Operations view for speed, latency, test health, freshness, and transfer volume. KPI counts and byte totals are rounded estimates: Prometheus increase() extrapolates at range edges, and rounding can differ from actual test totals. Byte totals include successful tests only; counter history is unavailable before exporter rollout.",
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 1,
@@ -27,7 +27,7 @@
       "description": "Servers tested in the selected range compared with the configured server inventory.",
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "thresholds" },
+          "color": { "mode": "fixed", "fixedColor": "#DA70D6" },
           "decimals": 0,
           "noValue": "No tests in range",
           "unit": "short"
@@ -47,7 +47,7 @@
       },
       "targets": [
         {
-          "expr": "count(sum by (server_id) (increase(librespeed_test_attempts_total{server_id=~\"$server_id\"}[$__range])) > 0)",
+          "expr": "count(sum by (server_id) (increase(librespeed_test_attempts_total{server_id=~\"$server_id\"}[$__range])) > 0) or vector(0)",
           "instant": true,
           "legendFormat": "Tested",
           "refId": "A"
@@ -64,15 +64,32 @@
     },
     {
       "datasource": { "type": "prometheus", "uid": "${datasource}" },
-      "description": "Attempts, successes, and failures counted within the selected range.",
+      "description": "Rounded estimates of attempts, successes, and failures in the selected range. Prometheus increase() extrapolates at range edges.",
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "thresholds" },
+          "color": { "mode": "fixed", "fixedColor": "#DA70D6" },
           "decimals": 0,
           "noValue": "No tests in range",
           "unit": "short"
         },
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "Failed" },
+            "properties": [
+              { "id": "color", "value": { "mode": "thresholds" } },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    { "color": "green", "value": null },
+                    { "color": "red", "value": 1 }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
       },
       "gridPos": { "h": 5, "w": 6, "x": 6, "y": 0 },
       "id": 17,
@@ -116,6 +133,14 @@
           "color": { "mode": "thresholds" },
           "decimals": 1,
           "noValue": "No tests in range",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "yellow", "value": 80 },
+              { "color": "green", "value": 95 }
+            ]
+          },
           "unit": "percent"
         },
         "overrides": []
@@ -143,7 +168,7 @@
     },
     {
       "datasource": { "type": "prometheus", "uid": "${datasource}" },
-      "description": "Bytes sent by successful tests in the selected range. Pre-deployment counter history is unavailable.",
+      "description": "Rounded estimate of bytes sent by successful tests in the selected range; increase() extrapolates at range edges. Pre-deployment counter history is unavailable.",
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "thresholds" },
@@ -176,7 +201,7 @@
     },
     {
       "datasource": { "type": "prometheus", "uid": "${datasource}" },
-      "description": "Bytes received by successful tests in the selected range. Pre-deployment counter history is unavailable.",
+      "description": "Rounded estimate of bytes received by successful tests in the selected range; increase() extrapolates at range edges. Pre-deployment counter history is unavailable.",
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "thresholds" },
@@ -618,7 +643,7 @@
       "datasource": { "type": "prometheus", "uid": "${datasource}" },
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "palette-classic" },
+          "color": { "mode": "fixed", "fixedColor": "red" },
           "custom": {
             "barAlignment": 0,
             "drawStyle": "bars",

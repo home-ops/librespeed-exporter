@@ -76,7 +76,7 @@ panels = {panel.get("id"): panel for panel in dashboard.get("panels", [])}
 panels_by_title = {panel.get("title"): panel for panel in dashboard.get("panels", [])}
 expected_kpis = {
     16: ("Servers used", (0, 6), [
-        'count(sum by (server_id) (increase(librespeed_test_attempts_total{server_id=~"$server_id"}[$__range])) > 0)',
+        'count(sum by (server_id) (increase(librespeed_test_attempts_total{server_id=~"$server_id"}[$__range])) > 0) or vector(0)',
         'count(librespeed_test_success{server_id=~"$server_id"})',
     ]),
     17: ("Tests in range", (6, 6), [
@@ -113,6 +113,50 @@ for panel_id, legends in expected_legends.items():
     if actual != legends:
         raise SystemExit(f"Dashboard KPI {panels[panel_id]['title']} has unexpected target names")
 
+def assert_thresholds(panel_id, expected_steps):
+    defaults = panels[panel_id].get("fieldConfig", {}).get("defaults", {})
+    thresholds = defaults.get("thresholds", {})
+    actual = [(step.get("color"), step.get("value")) for step in thresholds.get("steps", [])]
+    if defaults.get("color", {}).get("mode") != "thresholds" or thresholds.get("mode") != "absolute" or actual != expected_steps:
+        raise SystemExit(f"Dashboard panel {panel_id} has unexpected semantic thresholds")
+
+assert_thresholds(18, [("red", None), ("yellow", 80), ("green", 95)])
+orchid = "#DA70D6"
+for panel_id in (16, 17):
+    defaults = panels[panel_id].get("fieldConfig", {}).get("defaults", {})
+    if defaults.get("color") != {"mode": "fixed", "fixedColor": orchid}:
+        raise SystemExit(f"Dashboard count KPI {panels[panel_id]['title']} must use neutral Orchid color by default")
+failure_overrides = panels[17].get("fieldConfig", {}).get("overrides", [])
+failure_override = next((override for override in failure_overrides if override.get("matcher") == {"id": "byName", "options": "Failed"}), None)
+if not failure_override:
+    raise SystemExit("Dashboard failed count must have a semantic color override")
+failure_properties = {prop.get("id"): prop.get("value") for prop in failure_override.get("properties", [])}
+failure_steps = [(step.get("color"), step.get("value")) for step in failure_properties.get("thresholds", {}).get("steps", [])]
+if failure_properties.get("color") != {"mode": "thresholds"} or failure_properties.get("thresholds", {}).get("mode") != "absolute" or failure_steps != [("green", None), ("red", 1)]:
+    raise SystemExit("Dashboard failed count must be green at zero and red at one or more")
+if panels[11].get("fieldConfig", {}).get("defaults", {}).get("color") != {"mode": "fixed", "fixedColor": "red"}:
+    raise SystemExit("Failed-test history must use red")
+
+expected_mappings = {
+    4: {"0": ("red", "FAILED"), "1": ("green", "SUCCESS")},
+    6: {"0": ("red", "DOWN"), "1": ("green", "UP")},
+}
+for panel_id, expected in expected_mappings.items():
+    defaults = panels[panel_id].get("fieldConfig", {}).get("defaults", {})
+    mappings = defaults.get("mappings", [])
+    actual = {}
+    for mapping in mappings:
+        actual.update({key: (value.get("color"), value.get("text")) for key, value in mapping.get("options", {}).items()})
+    if actual != expected:
+        raise SystemExit(f"Dashboard panel {panel_id} must preserve semantic status mappings")
+    assert_thresholds(panel_id, [("red", None), ("green", 1)])
+assert_thresholds(10, [("red", None), ("green", 1)])
+
+for panel_id in (17, 19, 20):
+    description = panels[panel_id].get("description", "").lower()
+    if "estimate" not in description or "range edge" not in description:
+        raise SystemExit(f"Dashboard KPI {panels[panel_id]['title']} must explain rounded range-edge estimates")
+
 success_rate = panels[18]["targets"][0].get("expr", "") if 18 in panels else ""
 normalized_rate = re.sub(r"\s+", " ", success_rate).strip()
 expected_rate = '(100*sum(increase(librespeed_test_successes_total{server_id=~"$server_id"}[$__range]))/sum(increase(librespeed_test_attempts_total{server_id=~"$server_id"}[$__range])))and(sum(increase(librespeed_test_attempts_total{server_id=~"$server_id"}[$__range]))>0)'
@@ -125,7 +169,7 @@ if panels[18].get("fieldConfig", {}).get("defaults", {}).get("unit") != "percent
 for title in ("Data uploaded", "Data downloaded"):
     panel = panels_by_title.get(title, {})
     description = panel.get("description", "").lower()
-    if "successful" not in description or "pre-deployment" not in description or "unavailable" not in description:
+    if "successful" not in description or "pre-deployment" not in description or "unavailable" not in description or "estimate" not in description:
         raise SystemExit(f"Dashboard KPI {title} must describe successful-only bytes and unavailable pre-deployment history")
     defaults = panel.get("fieldConfig", {}).get("defaults", {})
     if defaults.get("unit") != "bytes" or defaults.get("decimals") != 0:
@@ -151,6 +195,10 @@ if panels[5].get("fieldConfig", {}).get("defaults", {}).get("custom", {}).get("g
 for panel_id in (3, 4):
     if panels[panel_id].get("fieldConfig", {}).get("defaults", {}).get("color", {}).get("mode") != "thresholds":
         raise SystemExit(f"Dashboard panel {panel_id} must preserve threshold colors")
+readme = re.sub(r"\s+", " ", (root / "README.md").read_text().lower())
+for phrase in ("estimates", "range-edge extrapolation", "rounding", "successful tests only", "counter rollout"):
+    if phrase not in readme:
+        raise SystemExit(f"README dashboard description must explain {phrase}")
 queries = [
     target.get("expr", "")
     for panel in dashboard.get("panels", [])
