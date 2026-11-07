@@ -28,10 +28,15 @@ are bytes, durations are seconds, and timestamps are Unix seconds.
 | `librespeed_test_last_success_timestamp_seconds` | Gauge | Time of latest success; zero before first success |
 | `librespeed_test_success` | Gauge | One for latest successful attempt, otherwise zero |
 | `librespeed_test_failures_total` | Counter | Failed attempts since process start |
+| `librespeed_test_attempts_total` | Counter | All test attempts since process start |
+| `librespeed_test_successes_total` | Counter | Successful test attempts since process start |
+| `librespeed_bytes_sent_total` | Counter | Bytes sent in successful tests since process start |
+| `librespeed_bytes_received_total` | Counter | Bytes received in successful tests since process start |
 
 Failed tests preserve last-good measurement gauges and last-success time, while
-setting latest-attempt status to failure. Metric state and failure counts reset
-when process restarts. `/healthz` reports process health; `/readyz` reports
+setting latest-attempt status to failure. Byte counters include successful tests
+only. Counter values reset when process restarts, and pre-deployment history
+cannot be reconstructed. `/healthz` reports process health; `/readyz` reports
 configuration/scheduler readiness and does not require successful Internet
 tests.
 
