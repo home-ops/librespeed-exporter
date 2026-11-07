@@ -230,11 +230,11 @@ cycle.
 a test and can finish during a test.
 
 Import [`grafana/librespeed-dashboard.json`](grafana/librespeed-dashboard.json)
-in Grafana, choose Prometheus datasource, and select server IDs. Dashboard shows
-latest throughput, ping, last-success age, attempt status, throughput/latency
-history, failures, transfer volumes, duration, and freshness history. Age uses
-`time() - librespeed_test_last_success_timestamp_seconds`; zero timestamp before
-first success appears very stale, as intended.
+in Grafana, choose Prometheus datasource, and select server IDs. Dashboard has
+download/upload gauges, a lower-is-better ping bar, scrape and attempt status,
+throughput and latency history, failures, freshness, duration, and transfer
+volume. Uninitialized timestamps are hidden until the first attempt or success.
+Attempt outcome history shows sampled status, not a per-test event log.
 
 ## Release Verification
 

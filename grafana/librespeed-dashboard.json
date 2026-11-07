@@ -15,149 +15,585 @@
       }
     ]
   },
+  "description": "Operations view for speed, latency, test health, freshness, and transfer volume.",
   "editable": true,
   "fiscalYearStartMonth": 0,
-  "graphTooltip": 0,
+  "graphTooltip": 1,
   "id": null,
   "links": [],
   "panels": [
     {
       "datasource": { "type": "prometheus", "uid": "${datasource}" },
-      "fieldConfig": { "defaults": { "unit": "bps", "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] } }, "overrides": [] },
-      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
+      "description": "Fixed 0–1 Gbps scale. Value is from the latest successful test.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "fixed", "fixedColor": "#50c2ff" },
+          "max": 1000000000,
+          "min": 0,
+          "noValue": "No successful test",
+          "unit": "bps"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 6, "x": 0, "y": 0 },
       "id": 1,
-      "options": { "colorMode": "value", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "showPercentChange": false, "textMode": "auto" },
-      "targets": [{ "expr": "librespeed_download_bits_per_second{server_id=~\"$server_id\"}", "refId": "A" }],
-      "title": "Latest download",
-      "type": "stat"
-    },
-    {
-      "datasource": { "type": "prometheus", "uid": "${datasource}" },
-      "fieldConfig": { "defaults": { "unit": "bps", "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] } }, "overrides": [] },
-      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 0 },
-      "id": 2,
-      "options": { "colorMode": "value", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "showPercentChange": false, "textMode": "auto" },
-      "targets": [{ "expr": "librespeed_upload_bits_per_second{server_id=~\"$server_id\"}", "refId": "A" }],
-      "title": "Latest upload",
-      "type": "stat"
-    },
-    {
-      "datasource": { "type": "prometheus", "uid": "${datasource}" },
-      "fieldConfig": { "defaults": { "unit": "s", "decimals": 3 }, "overrides": [] },
-      "gridPos": { "h": 4, "w": 4, "x": 12, "y": 0 },
-      "id": 3,
-      "options": { "colorMode": "value", "graphMode": "none", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "showPercentChange": false, "textMode": "auto" },
-      "targets": [{ "expr": "librespeed_ping_seconds{server_id=~\"$server_id\"}", "refId": "A" }],
-      "title": "Latest ping",
-      "type": "stat"
-    },
-    {
-      "datasource": { "type": "prometheus", "uid": "${datasource}" },
-      "fieldConfig": { "defaults": { "unit": "s", "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "orange", "value": 3600 }, { "color": "red", "value": 86400 }] } }, "overrides": [] },
-      "gridPos": { "h": 4, "w": 4, "x": 16, "y": 0 },
-      "id": 4,
-      "options": { "colorMode": "value", "graphMode": "none", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "showPercentChange": false, "textMode": "auto" },
-      "targets": [{ "expr": "time() - librespeed_test_last_success_timestamp_seconds{server_id=~\"$server_id\"}", "refId": "A" }],
-      "title": "Age of last success",
-      "type": "stat"
-    },
-    {
-      "datasource": { "type": "prometheus", "uid": "${datasource}" },
-      "fieldConfig": { "defaults": { "unit": "short", "thresholds": { "mode": "absolute", "steps": [{ "color": "red", "value": null }, { "color": "green", "value": 1 }] } }, "overrides": [] },
-      "gridPos": { "h": 4, "w": 4, "x": 20, "y": 0 },
-      "id": 5,
-      "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "showPercentChange": false, "textMode": "auto" },
-      "targets": [{ "expr": "librespeed_test_success{server_id=~\"$server_id\"}", "refId": "A" }],
-      "title": "Latest attempt succeeded",
-      "type": "stat"
-    },
-    {
-      "datasource": { "type": "prometheus", "uid": "${datasource}" },
-      "fieldConfig": { "defaults": { "unit": "bps", "custom": { "drawStyle": "line", "lineInterpolation": "smooth", "lineWidth": 2, "fillOpacity": 12 } }, "overrides": [] },
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
-      "id": 6,
-      "options": { "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } },
+      "options": {
+        "barShape": "rounded",
+        "barWidthFactor": 0.54,
+        "effects": { "barGlow": false, "centerGlow": false, "gradient": false },
+        "endpointMarker": "point",
+        "minVizHeight": 75,
+        "minVizWidth": 75,
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "segmentCount": 1,
+        "segmentSpacing": 0.3,
+        "shape": "gauge",
+        "showThresholdLabels": false,
+        "showThresholdMarkers": false,
+        "sizing": "auto",
+        "sparkline": true,
+        "textMode": "value_and_name"
+      },
       "targets": [
-        { "expr": "librespeed_download_bits_per_second{server_id=~\"$server_id\"}", "legendFormat": "download {{server_id}}", "refId": "A" },
-        { "expr": "librespeed_upload_bits_per_second{server_id=~\"$server_id\"}", "legendFormat": "upload {{server_id}}", "refId": "B" }
+        {
+          "expr": "librespeed_download_bits_per_second{server_id=~\"$server_id\"} and on(server_id) (librespeed_test_last_success_timestamp_seconds{server_id=~\"$server_id\"} > 0)",
+          "refId": "A"
+        }
       ],
-      "title": "Bandwidth history",
+      "title": "Download speed",
+      "type": "gauge"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "description": "Fixed 0–1 Gbps scale. Value is from the latest successful test.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "fixed", "fixedColor": "#a78bfa" },
+          "max": 1000000000,
+          "min": 0,
+          "noValue": "No successful test",
+          "unit": "bps"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 6, "x": 6, "y": 0 },
+      "id": 2,
+      "options": {
+        "barShape": "rounded",
+        "barWidthFactor": 0.54,
+        "effects": { "barGlow": false, "centerGlow": false, "gradient": false },
+        "endpointMarker": "point",
+        "minVizHeight": 75,
+        "minVizWidth": 75,
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "segmentCount": 1,
+        "segmentSpacing": 0.3,
+        "shape": "gauge",
+        "showThresholdLabels": false,
+        "showThresholdMarkers": false,
+        "sizing": "auto",
+        "sparkline": true,
+        "textMode": "value_and_name"
+      },
+      "targets": [
+        {
+          "expr": "librespeed_upload_bits_per_second{server_id=~\"$server_id\"} and on(server_id) (librespeed_test_last_success_timestamp_seconds{server_id=~\"$server_id\"} > 0)",
+          "refId": "A"
+        }
+      ],
+      "title": "Upload speed",
+      "type": "gauge"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "description": "Lower is better. Color bands are visual guidance, not an SLO.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "decimals": 1,
+          "max": 100,
+          "min": 0,
+          "noValue": "No successful test",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 25 },
+              { "color": "orange", "value": 50 },
+              { "color": "red", "value": 75 }
+            ]
+          },
+          "unit": "ms"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 6, "x": 12, "y": 0 },
+      "id": 3,
+      "options": {
+        "displayMode": "gradient",
+        "maxVizHeight": 100,
+        "minVizHeight": 24,
+        "minVizWidth": 8,
+        "namePlacement": "left",
+        "orientation": "horizontal",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "showUnfilled": true,
+        "sizing": "auto",
+        "textMode": "value_and_name",
+        "valueMode": "color"
+      },
+      "targets": [
+        {
+          "expr": "(librespeed_ping_seconds{server_id=~\"$server_id\"} * 1000) and on(server_id) (librespeed_test_last_success_timestamp_seconds{server_id=~\"$server_id\"} > 0)",
+          "legendFormat": "ping {{server_id}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Ping latency — lower is better",
+      "type": "bargauge"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "description": "Status of the most recent speed-test attempt.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "noValue": "No test yet",
+          "mappings": [
+            {
+              "options": {
+                "0": { "color": "red", "index": 0, "text": "FAILED" },
+                "1": { "color": "green", "index": 1, "text": "SUCCESS" }
+              },
+              "type": "value"
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "green", "value": 1 }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 6, "x": 18, "y": 0 },
+      "id": 4,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "showPercentChange": false,
+        "textMode": "value_and_name"
+      },
+      "targets": [
+        {
+          "expr": "librespeed_test_success{server_id=~\"$server_id\"} and on(server_id) (librespeed_test_last_attempt_timestamp_seconds{server_id=~\"$server_id\"} > 0)",
+          "refId": "A"
+        }
+      ],
+      "title": "Latest attempt status",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "description": "Prometheus samples the latest successful measurements. Failed tests retain stale values; check attempt status and success age.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 12,
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "showPoints": "never"
+          },
+          "unit": "bps"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 9, "w": 16, "x": 0, "y": 8 },
+      "id": 5,
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "targets": [
+        {
+          "expr": "librespeed_download_bits_per_second{server_id=~\"$server_id\"} and on(server_id) (librespeed_test_last_success_timestamp_seconds{server_id=~\"$server_id\"} > 0)",
+          "legendFormat": "download {{server_id}}",
+          "refId": "A"
+        },
+        {
+          "expr": "librespeed_upload_bits_per_second{server_id=~\"$server_id\"} and on(server_id) (librespeed_test_last_success_timestamp_seconds{server_id=~\"$server_id\"} > 0)",
+          "legendFormat": "upload {{server_id}}",
+          "refId": "B"
+        }
+      ],
+      "title": "Throughput history",
       "type": "timeseries"
     },
     {
       "datasource": { "type": "prometheus", "uid": "${datasource}" },
-      "fieldConfig": { "defaults": { "unit": "s", "custom": { "drawStyle": "line", "lineInterpolation": "smooth", "lineWidth": 2, "fillOpacity": 8 } }, "overrides": [] },
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 },
-      "id": 7,
-      "options": { "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } },
+      "description": "Prometheus scrape health for the exporter service.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [
+            {
+              "options": {
+                "0": { "color": "red", "index": 0, "text": "DOWN" },
+                "1": { "color": "green", "index": 1, "text": "UP" }
+              },
+              "type": "value"
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "green", "value": 1 }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 8, "x": 16, "y": 8 },
+      "id": 6,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "showPercentChange": false,
+        "textMode": "value_and_name"
+      },
       "targets": [
-        { "expr": "librespeed_ping_seconds{server_id=~\"$server_id\"}", "legendFormat": "ping {{server_id}}", "refId": "A" },
-        { "expr": "librespeed_jitter_seconds{server_id=~\"$server_id\"}", "legendFormat": "jitter {{server_id}}", "refId": "B" }
+        {
+          "expr": "up{job=\"librespeed-exporter\"}",
+          "refId": "A"
+        }
       ],
+      "title": "Prometheus scrape health",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "decimals": 0,
+          "noValue": "No successful test",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "orange", "value": 3600 },
+              { "color": "red", "value": 86400 }
+            ]
+          },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 5, "w": 4, "x": 16, "y": 12 },
+      "id": 7,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "showPercentChange": false,
+        "textMode": "value_and_name"
+      },
+      "targets": [
+        {
+          "expr": "(time() - librespeed_test_last_success_timestamp_seconds{server_id=~\"$server_id\"}) and on(server_id) (librespeed_test_last_success_timestamp_seconds{server_id=~\"$server_id\"} > 0)",
+          "refId": "A"
+        }
+      ],
+      "title": "Last success age",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": {
+        "defaults": { "decimals": 0, "noValue": "No test yet", "unit": "s" },
+        "overrides": []
+      },
+      "gridPos": { "h": 5, "w": 4, "x": 20, "y": 12 },
+      "id": 8,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "showPercentChange": false,
+        "textMode": "value_and_name"
+      },
+      "targets": [
+        {
+          "expr": "(time() - librespeed_test_last_attempt_timestamp_seconds{server_id=~\"$server_id\"}) and on(server_id) (librespeed_test_last_attempt_timestamp_seconds{server_id=~\"$server_id\"} > 0)",
+          "refId": "A"
+        }
+      ],
+      "title": "Latest attempt age",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 8,
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "showPoints": "never"
+          },
+          "unit": "ms"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 17 },
+      "id": 9,
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "targets": [
+        {
+          "expr": "(librespeed_ping_seconds{server_id=~\"$server_id\"} * 1000) and on(server_id) (librespeed_test_last_success_timestamp_seconds{server_id=~\"$server_id\"} > 0)",
+          "legendFormat": "ping {{server_id}}",
+          "refId": "A"
+        },
+        {
+          "expr": "(librespeed_jitter_seconds{server_id=~\"$server_id\"} * 1000) and on(server_id) (librespeed_test_last_success_timestamp_seconds{server_id=~\"$server_id\"} > 0)",
+          "legendFormat": "jitter {{server_id}}",
+          "refId": "B"
+        }
+      ],
+      "description": "Ping and jitter show the latest successful measurements; check attempt status when values look stale.",
       "title": "Latency and jitter history",
       "type": "timeseries"
     },
     {
       "datasource": { "type": "prometheus", "uid": "${datasource}" },
-      "fieldConfig": { "defaults": { "unit": "short", "custom": { "drawStyle": "bars", "lineWidth": 1, "fillOpacity": 30, "stacking": { "mode": "none", "group": "A" } } }, "overrides": [] },
-      "gridPos": { "h": 7, "w": 12, "x": 0, "y": 12 },
-      "id": 8,
-      "options": { "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } },
-      "targets": [{ "expr": "increase(librespeed_test_failures_total{server_id=~\"$server_id\"}[$__rate_interval])", "legendFormat": "failures {{server_id}}", "refId": "A" }],
+      "description": "Latest attempt state sampled by Prometheus; this is not a per-test event log.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 8,
+            "lineInterpolation": "stepAfter",
+            "lineWidth": 2,
+            "showPoints": "never"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "green", "value": 1 }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 17 },
+      "id": 10,
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "targets": [
+        {
+          "expr": "librespeed_test_success{server_id=~\"$server_id\"} and on(server_id) (librespeed_test_last_attempt_timestamp_seconds{server_id=~\"$server_id\"} > 0)",
+          "legendFormat": "success {{server_id}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Attempt outcome",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "barAlignment": 0,
+            "drawStyle": "bars",
+            "fillOpacity": 55,
+            "lineWidth": 1,
+            "showPoints": "never"
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 7, "w": 8, "x": 0, "y": 25 },
+      "id": 11,
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true },
+        "tooltip": { "mode": "single", "sort": "desc" }
+      },
+      "targets": [
+        {
+          "expr": "increase(librespeed_test_failures_total{server_id=~\"$server_id\"}[$__rate_interval])",
+          "legendFormat": "failures {{server_id}}",
+          "refId": "A"
+        }
+      ],
       "title": "Failed tests per interval",
       "type": "timeseries"
     },
     {
       "datasource": { "type": "prometheus", "uid": "${datasource}" },
-      "fieldConfig": { "defaults": { "unit": "bytes", "custom": { "drawStyle": "line", "lineInterpolation": "smooth", "lineWidth": 2, "fillOpacity": 8 } }, "overrides": [] },
-      "gridPos": { "h": 7, "w": 12, "x": 12, "y": 12 },
-      "id": 9,
-      "options": { "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 8,
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "showPoints": "never"
+          },
+          "noValue": "No test yet",
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 7, "w": 8, "x": 8, "y": 25 },
+      "id": 12,
+      "description": "Elapsed duration of the latest attempt, whether it succeeded or failed.",
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
       "targets": [
-        { "expr": "librespeed_bytes_sent{server_id=~\"$server_id\"}", "legendFormat": "bytes sent {{server_id}}", "refId": "A" },
-        { "expr": "librespeed_bytes_received{server_id=~\"$server_id\"}", "legendFormat": "bytes received {{server_id}}", "refId": "B" }
+        {
+          "expr": "librespeed_test_duration_seconds{server_id=~\"$server_id\"} and on(server_id) (librespeed_test_last_attempt_timestamp_seconds{server_id=~\"$server_id\"} > 0)",
+          "legendFormat": "duration {{server_id}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Test duration",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "description": "Bytes from the latest successful test; failed tests preserve the last successful values.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 8,
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "showPoints": "never"
+          },
+          "unit": "bytes"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 7, "w": 8, "x": 16, "y": 25 },
+      "id": 13,
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "targets": [
+        {
+          "expr": "librespeed_bytes_received{server_id=~\"$server_id\"} and on(server_id) (librespeed_test_last_success_timestamp_seconds{server_id=~\"$server_id\"} > 0)",
+          "legendFormat": "received {{server_id}}",
+          "refId": "A"
+        },
+        {
+          "expr": "librespeed_bytes_sent{server_id=~\"$server_id\"} and on(server_id) (librespeed_test_last_success_timestamp_seconds{server_id=~\"$server_id\"} > 0)",
+          "legendFormat": "sent {{server_id}}",
+          "refId": "B"
+        }
       ],
       "title": "Transfer volume",
       "type": "timeseries"
     },
     {
       "datasource": { "type": "prometheus", "uid": "${datasource}" },
-      "fieldConfig": { "defaults": { "unit": "short", "custom": { "drawStyle": "steps", "lineWidth": 2, "fillOpacity": 5 } }, "overrides": [] },
-      "gridPos": { "h": 7, "w": 12, "x": 0, "y": 19 },
-      "id": 10,
-      "options": { "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } },
-      "targets": [{ "expr": "librespeed_test_success{server_id=~\"$server_id\"}", "legendFormat": "success {{server_id}}", "refId": "A" }],
-      "title": "Attempt success history",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 8,
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "showPoints": "never"
+          },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 7, "w": 12, "x": 0, "y": 32 },
+      "id": 14,
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "targets": [
+        {
+          "expr": "(time() - librespeed_test_last_success_timestamp_seconds{server_id=~\"$server_id\"}) and on(server_id) (librespeed_test_last_success_timestamp_seconds{server_id=~\"$server_id\"} > 0)",
+          "legendFormat": "success age {{server_id}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Success freshness",
       "type": "timeseries"
     },
     {
       "datasource": { "type": "prometheus", "uid": "${datasource}" },
-      "fieldConfig": { "defaults": { "unit": "s", "custom": { "drawStyle": "line", "lineWidth": 2, "fillOpacity": 8 } }, "overrides": [] },
-      "gridPos": { "h": 7, "w": 12, "x": 12, "y": 19 },
-      "id": 11,
-      "options": { "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } },
-      "targets": [{ "expr": "time() - librespeed_test_last_success_timestamp_seconds{server_id=~\"$server_id\"}", "legendFormat": "success age {{server_id}}", "refId": "A" }],
-      "title": "Freshness history (age of latest success)",
-      "type": "timeseries"
-    },
-    {
-      "datasource": { "type": "prometheus", "uid": "${datasource}" },
-      "fieldConfig": { "defaults": { "unit": "s", "custom": { "drawStyle": "line", "lineInterpolation": "smooth", "lineWidth": 2, "fillOpacity": 8 } }, "overrides": [] },
-      "gridPos": { "h": 6, "w": 12, "x": 0, "y": 26 },
-      "id": 12,
-      "options": { "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } },
-      "targets": [{ "expr": "librespeed_test_duration_seconds{server_id=~\"$server_id\"}", "legendFormat": "duration {{server_id}}", "refId": "A" }],
-      "title": "Test duration by attempt",
-      "type": "timeseries"
-    },
-    {
-      "datasource": { "type": "prometheus", "uid": "${datasource}" },
-      "fieldConfig": { "defaults": { "unit": "s", "custom": { "drawStyle": "line", "lineInterpolation": "smooth", "lineWidth": 2, "fillOpacity": 8 } }, "overrides": [] },
-      "gridPos": { "h": 6, "w": 12, "x": 12, "y": 32 },
-      "id": 13,
-      "options": { "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } },
-      "targets": [{ "expr": "time() - librespeed_test_last_attempt_timestamp_seconds{server_id=~\"$server_id\"}", "legendFormat": "attempt age {{server_id}}", "refId": "A" }],
-      "title": "Age of latest attempt",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 8,
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "showPoints": "never"
+          },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 7, "w": 12, "x": 12, "y": 32 },
+      "id": 15,
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "targets": [
+        {
+          "expr": "(time() - librespeed_test_last_attempt_timestamp_seconds{server_id=~\"$server_id\"}) and on(server_id) (librespeed_test_last_attempt_timestamp_seconds{server_id=~\"$server_id\"} > 0)",
+          "legendFormat": "attempt age {{server_id}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Attempt freshness",
       "type": "timeseries"
     }
   ],
@@ -190,7 +626,10 @@
         "multi": true,
         "name": "server_id",
         "options": [],
-        "query": { "query": "label_values(librespeed_test_success, server_id)", "refId": "StandardVariableQuery" },
+        "query": {
+          "query": "label_values(librespeed_test_success, server_id)",
+          "refId": "StandardVariableQuery"
+        },
         "refresh": 2,
         "regex": "",
         "sort": 1,
@@ -201,8 +640,8 @@
   "time": { "from": "now-24h", "to": "now" },
   "timepicker": {},
   "timezone": "browser",
-  "title": "LibreSpeed Exporter",
+  "title": "LibreSpeed Operations",
   "uid": "librespeed-exporter",
-  "version": 1,
+  "version": 2,
   "weekStart": ""
 }
