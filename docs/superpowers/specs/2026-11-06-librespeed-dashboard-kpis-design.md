@@ -55,9 +55,12 @@ All KPIs follow the selected Grafana time range and selected `server_id` values.
 
 Byte cards count successful-test transfer only. Failed attempts may transfer
 partial data, but exporter cannot report those bytes. Prometheus `increase()`
-extrapolates at range boundaries; rounded totals are estimates. Counter results
-become complete only after new metrics accumulate data; earlier history cannot
-be reconstructed.
+extrapolates at range boundaries; rounded totals are estimates. Window-derived
+KPIs show no value until every selected configured server has at least two
+counter samples; configured-server count remains available. An attempt completed
+before the first scrape after startup may be missed. Counter results become
+complete only after metrics accumulate data; earlier history cannot be
+reconstructed.
 
 ## Exporter Metric Contract
 
@@ -84,6 +87,8 @@ success, failure, and transfer updates atomic under the metrics store lock.
 - Use Grafana's theme-aware Blue-Purple continuous scheme as native Orchid-like
   gradient for throughput values and history fills. Mockup hex colors are
   illustrative; do not add a plugin or unsupported custom palette mechanism.
+- Use the theme-aware Blue-Purple scheme for transfer-volume cards; never use
+  threshold colors for volume values.
 - Keep surfaces neutral and low-contrast in both light and dark themes.
 - Use red below 80%, yellow from 80% to below 95%, and green at 95% or above
   for success rate. Use green at zero failures and red for one or more failures.
@@ -110,5 +115,8 @@ success, failure, and transfer updates atomic under the metrics store lock.
 ## Delivery
 
 PR #7 and PR #1107 merged during implementation. Create a new upstream PR for
-exporter, tests, docs, and dashboard, then a dependent GitOps PR with the final
-immutable pin. Keep both open for human review and merge upstream first.
+exporter, tests, docs, and dashboard, then a dependent GitOps draft PR with the
+final immutable dashboard pin. The current deployment image predates the new
+counters. Keep the GitOps PR draft until a counter-enabled image is published
+and its immutable digest is pinned. Keep both PRs open for human review; merge
+upstream before GitOps.
