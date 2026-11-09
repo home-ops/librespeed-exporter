@@ -93,20 +93,20 @@ def increase(name):
     return f'increase({name}{selector}[$__range]) and on(server_id) {inventory}'
 
 expected_kpis = {
-    16: ("Servers used", (0, 6), [
+    16: ("Servers tested (window)", (0, 6), [
         f'(count(sum by (server_id) ({increase(counter_names[0])}) > 0) or vector(0)){gate}',
         configured,
     ]),
-    17: ("Tests in range", (6, 6), [
+    17: ("Test outcomes (window)", (6, 6), [
         f'round(sum({increase(counter_names[0])})){gate}',
         f'round(sum({increase(counter_names[1])})){gate}',
         f'round(sum({increase(counter_names[2])})){gate}',
     ]),
-    18: ("Success rate", (12, 4), []),
-    19: ("Data uploaded", (16, 4), [
+    18: ("Success rate (window)", (12, 4), []),
+    19: ("Uploaded (window)", (16, 4), [
         f'round(sum({increase(counter_names[3])})){gate}',
     ]),
-    20: ("Data downloaded", (20, 4), [
+    20: ("Downloaded (window)", (20, 4), [
         f'round(sum({increase(counter_names[4])})){gate}',
     ]),
 }
@@ -130,6 +130,38 @@ for panel_id, legends in expected_legends.items():
     actual = [target.get("legendFormat") for target in panels[panel_id].get("targets", [])]
     if actual != legends:
         raise SystemExit(f"Dashboard KPI {panels[panel_id]['title']} has unexpected target names")
+
+snapshot = panels.get(21)
+if not snapshot or snapshot.get("title") != "Current server snapshot" or snapshot.get("type") != "table":
+    raise SystemExit("Dashboard must contain Table panel 21: Current server snapshot")
+if snapshot.get("gridPos") != {"x": 0, "y": 5, "w": 24, "h": 8}:
+    raise SystemExit("Current server snapshot must fill the row below window KPIs")
+if {panel_id for panel_id in (1, 2, 3, 4, 7, 8) if panel_id in panels}:
+    raise SystemExit("Duplicate current gauge, status, and age panels must be removed")
+snapshot_targets = snapshot.get("targets", [])
+if [target.get("refId") for target in snapshot_targets] != ["A", "B", "C", "D", "E"]:
+    raise SystemExit("Current server snapshot must query five server fields")
+for target in snapshot_targets:
+    expr = target.get("expr", "")
+    if target.get("instant") is not True or target.get("format") != "table":
+        raise SystemExit("Current server snapshot queries must be instant table queries")
+    if 'server_id=~"$server_id"' not in expr or "by (server_id)" not in expr:
+        raise SystemExit("Current server snapshot queries must filter and aggregate by server_id")
+    if " > 0" not in expr:
+        raise SystemExit("Current server snapshot must hide uninitialized timestamps")
+    if any(label in expr for label in ("pod", "instance")):
+        raise SystemExit("Current server snapshot queries must not expose scrape-target labels")
+transformations = snapshot.get("transformations", [])
+join = next((item for item in transformations if item.get("id") == "joinByField"), None)
+if not join or join.get("options", {}).get("byField") != "server_id" or join.get("options", {}).get("mode") != "outerTabular":
+    raise SystemExit("Current server snapshot must outer-join query results by server_id")
+organize = next((item for item in transformations if item.get("id") == "organize"), None)
+if not organize or organize.get("options", {}).get("renameByName", {}).get("server_id") != "Server":
+    raise SystemExit("Current server snapshot must label server_id as Server")
+if panels[16].get("fieldConfig", {}).get("defaults", {}).get("noValue") != "Waiting for counter samples":
+    raise SystemExit("Servers tested KPI must show incomplete counter coverage")
+if panels[18].get("fieldConfig", {}).get("defaults", {}).get("noValue") != "—":
+    raise SystemExit("Success rate KPI must show a neutral dash when no value exists")
 
 def assert_thresholds(panel_id, expected_steps):
     defaults = panels[panel_id].get("fieldConfig", {}).get("defaults", {})
@@ -156,7 +188,6 @@ if panels[11].get("fieldConfig", {}).get("defaults", {}).get("color") != {"mode"
     raise SystemExit("Failed-test history must use red")
 
 expected_mappings = {
-    4: {"0": ("red", "FAILED"), "1": ("green", "SUCCESS")},
     6: {"0": ("red", "DOWN"), "1": ("green", "UP")},
 }
 for panel_id, expected in expected_mappings.items():
@@ -169,6 +200,13 @@ for panel_id, expected in expected_mappings.items():
         raise SystemExit(f"Dashboard panel {panel_id} must preserve semantic status mappings")
     assert_thresholds(panel_id, [("red", None), ("green", 1)])
 assert_thresholds(10, [("red", None), ("green", 1)])
+snapshot_status = next((override for override in snapshot.get("fieldConfig", {}).get("overrides", []) if override.get("matcher") == {"id": "byName", "options": "Latest attempt"}), None)
+if not snapshot_status:
+    raise SystemExit("Current server snapshot must color latest attempt status semantically")
+snapshot_status_properties = {prop.get("id"): prop.get("value") for prop in snapshot_status.get("properties", [])}
+snapshot_status_mapping = snapshot_status_properties.get("mappings", [{}])[0].get("options", {})
+if {key: (value.get("color"), value.get("text")) for key, value in snapshot_status_mapping.items()} != {"0": ("red", "FAILED"), "1": ("green", "SUCCESS")}:
+    raise SystemExit("Current server snapshot must preserve failure and success status mappings")
 
 for panel_id in (17, 19, 20):
     description = panels[panel_id].get("description", "").lower()
@@ -191,7 +229,7 @@ if len(panels.get(18, {}).get("targets", [])) != 1:
     raise SystemExit("Dashboard success rate must have one target")
 if panels[18].get("fieldConfig", {}).get("defaults", {}).get("unit") != "percent":
     raise SystemExit("Dashboard success rate must use Grafana percent units")
-for title in ("Data uploaded", "Data downloaded"):
+for title in ("Uploaded (window)", "Downloaded (window)"):
     panel = panels_by_title.get(title, {})
     description = panel.get("description", "").lower()
     if "successful" not in description or "pre-deployment" not in description or "unavailable" not in description or "estimate" not in description:
@@ -202,30 +240,50 @@ for title in ("Data uploaded", "Data downloaded"):
     if defaults.get("color") != {"mode": "continuous-BlPu"}:
         raise SystemExit(f"Dashboard KPI {title} must use neutral continuous-BlPu coloring")
 
-for panel_id in range(1, 16):
-    panel = panels.get(panel_id)
-    if not panel or panel.get("gridPos", {}).get("y") != {
-        1: 5, 2: 5, 3: 5, 4: 5, 5: 13, 6: 13, 7: 17, 8: 17,
-        9: 22, 10: 22, 11: 30, 12: 30, 13: 30, 14: 37, 15: 37,
-    }[panel_id]:
-        raise SystemExit(f"Dashboard panel {panel_id} must shift down five grid rows")
-for panel_id in (1, 2, 5):
+if panels[21].get("gridPos", {}).get("y") != 5:
+    raise SystemExit("Current server snapshot must follow the KPI row")
+expected_history_positions = {
+    5: (0, 13, 16, 9), 6: (16, 13, 8, 4),
+    9: (0, 22, 12, 8), 10: (12, 22, 12, 8),
+    11: (0, 30, 8, 7), 12: (8, 30, 8, 7), 13: (16, 30, 8, 7),
+    14: (0, 37, 12, 7), 15: (12, 37, 12, 7),
+}
+for panel_id, (x, y, w, h) in expected_history_positions.items():
+    if panels.get(panel_id, {}).get("gridPos") != {"x": x, "y": y, "w": w, "h": h}:
+        raise SystemExit(f"Dashboard history panel {panel_id} has unexpected position")
+history_panels = (5, 9, 10, 11, 12, 13, 14, 15)
+for panel_id in history_panels:
+    for target in panels[panel_id].get("targets", []):
+        expr = target.get("expr", "")
+        if 'server_id=~"$server_id"' not in expr or "by (server_id)" not in expr:
+            raise SystemExit(f"Dashboard history panel {panel_id} must filter and aggregate by server_id")
+        if any(label in expr for label in ("pod", "instance")):
+            raise SystemExit(f"Dashboard history panel {panel_id} must not expose scrape-target labels")
+if panels[13].get("title") != "Latest-test transfer":
+    raise SystemExit("Transfer history must be labeled as latest-test data")
+transfer_description = panels[13].get("description", "").lower()
+if "latest successful test" not in transfer_description or "sampled" not in transfer_description or "window total" not in transfer_description:
+    raise SystemExit("Transfer history must distinguish sampled latest-test values from window totals")
+for panel_id in (5, 9, 10, 12, 13, 14, 15):
+    fill = panels[panel_id].get("fieldConfig", {}).get("defaults", {}).get("custom", {}).get("fillOpacity", 100)
+    if fill > 6:
+        raise SystemExit(f"Dashboard history panel {panel_id} must use reduced chart fill")
+if panels[11].get("fieldConfig", {}).get("defaults", {}).get("custom", {}).get("fillOpacity", 100) > 30:
+    raise SystemExit("Failed-test history must use reduced bar fill")
+for panel_id in (5, 9, 12, 13, 14, 15):
     panel = panels[panel_id]
     defaults = panel.get("fieldConfig", {}).get("defaults", {})
     if defaults.get("color", {}).get("mode") != "continuous-BlPu":
         raise SystemExit(f"Dashboard panel {panel_id} must use continuous-BlPu")
-for panel_id in (1, 2):
-    if not panels[panel_id].get("options", {}).get("effects", {}).get("gradient"):
-        raise SystemExit(f"Dashboard gauge {panel_id} must enable gradient rendering")
 if panels[5].get("fieldConfig", {}).get("defaults", {}).get("custom", {}).get("gradientMode") != "scheme":
     raise SystemExit("Throughput history must use scheme gradient mode")
-for panel_id in (3, 4):
-    if panels[panel_id].get("fieldConfig", {}).get("defaults", {}).get("color", {}).get("mode") != "thresholds":
-        raise SystemExit(f"Dashboard panel {panel_id} must preserve threshold colors")
 readme = re.sub(r"\s+", " ", (root / "README.md").read_text().lower())
 for phrase in ("estimates", "range-edge extrapolation", "rounding", "successful tests only", "counter rollout", "two samples", "first scrape"):
     if phrase not in readme:
         raise SystemExit(f"README dashboard description must explain {phrase}")
+for phrase in ("selected-window estimates", "latest-test", "sampled gauge history", "not a window total"):
+    if phrase not in readme:
+        raise SystemExit(f"README must distinguish window estimates from latest-test history: {phrase}")
 queries = [
     target.get("expr", "")
     for panel in dashboard.get("panels", [])

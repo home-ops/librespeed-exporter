@@ -235,22 +235,27 @@ cycle.
 a test and can finish during a test.
 
 Import [`grafana/librespeed-dashboard.json`](grafana/librespeed-dashboard.json)
-in Grafana, choose Prometheus datasource, and select server IDs. Dashboard has
-download/upload gauges, a lower-is-better ping bar, scrape and attempt status,
-throughput and latency history, failures, freshness, duration, and transfer
-volume. KPI panels show configured versus tested server coverage and success
-rate. Rounded estimates cover attempts, successes, failures, and upload/download
-byte totals for the selected time range. Prometheus `increase()` uses range-edge
-extrapolation, and rounding can make displayed totals differ from actual test
-totals. Byte totals include successful tests only. Counter history is unavailable
-before the exporter counter rollout, so earlier ranges can undercount or omit KPI
-values. Counter KPIs require at least two samples for every selected configured
-server; until then, the configured count remains visible but counter values are
-unavailable, not zero. A test completed before the first scrape after startup or
-restart may be missed by `increase()`, including its successful transfer bytes.
-Deploy a counter-enabled exporter image before using these panels. Uninitialized
+in Grafana, choose Prometheus datasource, and select server IDs. The top row is a
+selected-window summary. It shows configured versus tested server coverage,
+attempts, outcomes, success rate, and successful-test transfer totals. These are
+selected-window estimates from counters, not current measurements. Prometheus
+`increase()` uses range-edge extrapolation, and rounding can make displayed
+totals differ from actual test totals. Byte totals include successful tests
+only. Counter history is unavailable before the exporter counter rollout, so
+earlier ranges can undercount or omit KPI values. Counter KPIs require at least
+two samples for every selected configured server; until then, the configured
+count remains visible and counter values show `Waiting for counter samples`, not
+zero. A test completed before the first scrape after startup or restart may be
+missed by `increase()`, including its successful transfer bytes. Deploy a
+counter-enabled exporter image before using these panels.
+
+The current server snapshot table shows one row per server, with latest
+successful download, upload, and ping values, latest attempt status, and attempt
+age. The history panels show Prometheus-sampled latest-test gauges. In
+particular, **Latest-test transfer** is sampled gauge history, not a window
+total; failed tests preserve the last successful transfer values. Attempt
+outcome history shows sampled status, not a per-test event log. Uninitialized
 timestamps are hidden until the first attempt or success.
-Attempt outcome history shows sampled status, not a per-test event log.
 
 ## Release Verification
 
