@@ -237,7 +237,7 @@
         "type": "prometheus",
         "uid": "${datasource}"
       },
-      "description": "Latest server snapshot. Download, upload, and ping are from the latest successful test; status and attempt age reflect the latest attempt. Duplicate scrape series are reduced to one row per server.",
+      "description": "Latest server snapshot. Download, upload, and ping are from the latest successful test; status and attempt age reflect the latest attempt. Last success age shows time since the most recent successful test. Duplicate scrape series are reduced to one row per server.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -384,6 +384,22 @@
                 "value": 0
               }
             ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Last success age"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "s"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              }
+            ]
           }
         ]
       },
@@ -449,6 +465,14 @@
           "legendFormat": "Attempt age",
           "range": false,
           "refId": "E"
+        },
+        {
+          "expr": "(time() - max by (server_id) (librespeed_test_last_success_timestamp_seconds{server_id=~\"$server_id\"})) and (max by (server_id) (librespeed_test_last_success_timestamp_seconds{server_id=~\"$server_id\"}) > 0)",
+          "format": "table",
+          "instant": true,
+          "legendFormat": "Last success age",
+          "range": false,
+          "refId": "F"
         }
       ],
       "title": "Current server snapshot",
@@ -472,7 +496,8 @@
               "Upload": 2,
               "Ping": 3,
               "Latest attempt": 4,
-              "Attempt age": 5
+              "Last success age": 5,
+              "Attempt age": 6
             },
             "renameByName": {
               "server_id": "Server",
@@ -480,14 +505,15 @@
               "Value #B": "Upload",
               "Value #C": "Ping",
               "Value #D": "Latest attempt",
-              "Value #E": "Attempt age"
+              "Value #E": "Attempt age",
+              "Value #F": "Last success age"
             }
           }
         }
       ],
       "type": "table"
     },
-        {
+    {
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -589,7 +615,7 @@
       "title": "Prometheus scrape health",
       "type": "stat"
     },
-        {
+    {
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -644,7 +670,7 @@
       "title": "Latency and jitter history",
       "type": "timeseries"
     },
-        {
+    {
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -757,7 +783,7 @@
       "title": "Failed tests per interval",
       "type": "timeseries"
     },
-        {
+    {
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -808,7 +834,7 @@
       "title": "Test duration",
       "type": "timeseries"
     },
-        {
+    {
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -861,104 +887,6 @@
         }
       ],
       "title": "Latest-test transfer",
-      "type": "timeseries"
-    },
-        {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${datasource}"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "continuous-BlPu"
-          },
-          "custom": {
-            "drawStyle": "line",
-            "fillOpacity": 4,
-            "lineInterpolation": "smooth",
-            "lineWidth": 2,
-            "showPoints": "never"
-          },
-          "unit": "s"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 7,
-        "w": 12,
-        "x": 0,
-        "y": 37
-      },
-      "id": 14,
-      "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        }
-      },
-      "targets": [
-        {
-          "expr": "(time() - max by (server_id) (librespeed_test_last_success_timestamp_seconds{server_id=~\"$server_id\"})) and (max by (server_id) (librespeed_test_last_success_timestamp_seconds{server_id=~\"$server_id\"}) > 0)",
-          "legendFormat": "Success · {{server_id}}",
-          "refId": "A"
-        }
-      ],
-      "title": "Success freshness",
-      "type": "timeseries"
-    },
-        {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${datasource}"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "continuous-BlPu"
-          },
-          "custom": {
-            "drawStyle": "line",
-            "fillOpacity": 4,
-            "lineInterpolation": "smooth",
-            "lineWidth": 2,
-            "showPoints": "never"
-          },
-          "unit": "s"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 7,
-        "w": 12,
-        "x": 12,
-        "y": 37
-      },
-      "id": 15,
-      "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        }
-      },
-      "targets": [
-        {
-          "expr": "(time() - max by (server_id) (librespeed_test_last_attempt_timestamp_seconds{server_id=~\"$server_id\"})) and (max by (server_id) (librespeed_test_last_attempt_timestamp_seconds{server_id=~\"$server_id\"}) > 0)",
-          "legendFormat": "Attempt · {{server_id}}",
-          "refId": "A"
-        }
-      ],
-      "title": "Attempt freshness",
       "type": "timeseries"
     }
   ],
