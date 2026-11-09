@@ -139,8 +139,8 @@ if snapshot.get("gridPos") != {"x": 0, "y": 5, "w": 24, "h": 8}:
 if {panel_id for panel_id in (1, 2, 3, 4, 7, 8) if panel_id in panels}:
     raise SystemExit("Duplicate current gauge, status, and age panels must be removed")
 snapshot_targets = snapshot.get("targets", [])
-if [target.get("refId") for target in snapshot_targets] != ["A", "B", "C", "D", "E"]:
-    raise SystemExit("Current server snapshot must query five server fields")
+if [target.get("refId") for target in snapshot_targets] != ["A", "B", "C", "D", "E", "F"]:
+    raise SystemExit("Current server snapshot must query six server fields")
 for target in snapshot_targets:
     expr = target.get("expr", "")
     if target.get("instant") is not True or target.get("format") != "table":
@@ -158,6 +158,12 @@ if not join or join.get("options", {}).get("byField") != "server_id" or join.get
 organize = next((item for item in transformations if item.get("id") == "organize"), None)
 if not organize or organize.get("options", {}).get("renameByName", {}).get("server_id") != "Server":
     raise SystemExit("Current server snapshot must label server_id as Server")
+if organize.get("options", {}).get("renameByName", {}).get("Value #F") != "Last success age":
+    raise SystemExit("Current server snapshot must include last success age")
+if organize.get("options", {}).get("renameByName", {}).get("Value #E") != "Attempt age":
+    raise SystemExit("Current server snapshot must include attempt age")
+if any(panel_id in panels for panel_id in (14, 15)):
+    raise SystemExit("Freshness history charts must be removed")
 if panels[16].get("fieldConfig", {}).get("defaults", {}).get("noValue") != "Waiting for counter samples":
     raise SystemExit("Servers tested KPI must show incomplete counter coverage")
 if panels[18].get("fieldConfig", {}).get("defaults", {}).get("noValue") != "—":
@@ -246,12 +252,11 @@ expected_history_positions = {
     5: (0, 13, 16, 9), 6: (16, 13, 8, 4),
     9: (0, 22, 12, 8), 10: (12, 22, 12, 8),
     11: (0, 30, 8, 7), 12: (8, 30, 8, 7), 13: (16, 30, 8, 7),
-    14: (0, 37, 12, 7), 15: (12, 37, 12, 7),
 }
 for panel_id, (x, y, w, h) in expected_history_positions.items():
     if panels.get(panel_id, {}).get("gridPos") != {"x": x, "y": y, "w": w, "h": h}:
         raise SystemExit(f"Dashboard history panel {panel_id} has unexpected position")
-history_panels = (5, 9, 10, 11, 12, 13, 14, 15)
+history_panels = (5, 9, 10, 11, 12, 13)
 for panel_id in history_panels:
     for target in panels[panel_id].get("targets", []):
         expr = target.get("expr", "")
@@ -264,13 +269,13 @@ if panels[13].get("title") != "Latest-test transfer":
 transfer_description = panels[13].get("description", "").lower()
 if "latest successful test" not in transfer_description or "sampled" not in transfer_description or "window total" not in transfer_description:
     raise SystemExit("Transfer history must distinguish sampled latest-test values from window totals")
-for panel_id in (5, 9, 10, 12, 13, 14, 15):
+for panel_id in (5, 9, 10, 12, 13):
     fill = panels[panel_id].get("fieldConfig", {}).get("defaults", {}).get("custom", {}).get("fillOpacity", 100)
     if fill > 6:
         raise SystemExit(f"Dashboard history panel {panel_id} must use reduced chart fill")
 if panels[11].get("fieldConfig", {}).get("defaults", {}).get("custom", {}).get("fillOpacity", 100) > 30:
     raise SystemExit("Failed-test history must use reduced bar fill")
-for panel_id in (5, 9, 12, 13, 14, 15):
+for panel_id in (5, 9, 12, 13):
     panel = panels[panel_id]
     defaults = panel.get("fieldConfig", {}).get("defaults", {})
     if defaults.get("color", {}).get("mode") != "continuous-BlPu":
@@ -281,7 +286,7 @@ readme = re.sub(r"\s+", " ", (root / "README.md").read_text().lower())
 for phrase in ("estimates", "range-edge extrapolation", "rounding", "successful tests only", "counter rollout", "two samples", "first scrape"):
     if phrase not in readme:
         raise SystemExit(f"README dashboard description must explain {phrase}")
-for phrase in ("selected-window estimates", "latest-test", "sampled gauge history", "not a window total"):
+for phrase in ("selected-window estimates", "latest-test", "sampled gauge history", "not a window total", "last success age", "attempt age"):
     if phrase not in readme:
         raise SystemExit(f"README must distinguish window estimates from latest-test history: {phrase}")
 queries = [

@@ -250,10 +250,12 @@ missed by `increase()`, including its successful transfer bytes. Deploy a
 counter-enabled exporter image before using these panels.
 
 The current server snapshot table shows one row per server, with latest
-successful download, upload, and ping values, latest attempt status, and attempt
-age. The history panels show Prometheus-sampled latest-test gauges. In
-particular, **Latest-test transfer** is sampled gauge history, not a window
-total; failed tests preserve the last successful transfer values. Attempt
+successful download, upload, and ping values, latest attempt status, last success
+age, and attempt age. Last success age grows across failures; attempt age resets
+after every completed test. These current values replace sawtooth freshness
+history charts. Remaining history panels show sampled latest-test gauges from
+Prometheus. **Latest-test transfer** is sampled gauge history, not a window total;
+failed tests preserve the last successful transfer values. Attempt
 outcome history shows sampled status, not a per-test event log. Uninitialized
 timestamps are hidden until the first attempt or success.
 
