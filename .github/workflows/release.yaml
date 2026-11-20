@@ -6,7 +6,18 @@ name: Release
   schedule:
     - cron: "0 0 * * *"
   push:
+    branches: ["main"]
     tags: ["v*"]
+    paths:
+      - ".dockerignore"
+      - "Dockerfile"
+      - "go.mod"
+      - "go.sum"
+      - "cmd/**"
+      - "internal/**"
+      - "LICENSE"
+      - "LICENSES/**"
+      - "THIRD_PARTY.md"
   workflow_dispatch:
 
 permissions: {}
@@ -21,6 +32,7 @@ env:
 
 jobs:
   quality:
+    if: github.event_name != 'schedule'
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -37,7 +49,7 @@ jobs:
           cache: true
 
       - name: Validate release tag format
-        if: github.event_name == 'push'
+        if: github.event_name == 'push' && github.ref_type == 'tag'
         env:
           RELEASE_TAG: ${{ github.ref_name }}
         run: printf '%s\n' "$RELEASE_TAG" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$'
@@ -116,6 +128,7 @@ jobs:
 
   source-scan:
     needs: quality
+    if: github.event_name != 'schedule'
     outputs:
       cli-version: ${{ steps.cli.outputs.version }}
       cli-commit: ${{ steps.cli.outputs.commit }}
@@ -214,8 +227,7 @@ jobs:
     needs: [quality, source-scan]
     if: >-
       github.repository == 'home-ops/librespeed-exporter' &&
-      (github.event_name == 'schedule' ||
-       (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) ||
+      (github.event_name == 'push' ||
        (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'))
     runs-on: ubuntu-24.04
     outputs:
@@ -241,10 +253,11 @@ jobs:
         id: release
         env:
           REF_NAME: ${{ github.ref_name }}
+          REF_TYPE: ${{ github.ref_type }}
           EVENT_NAME: ${{ github.event_name }}
         run: |
           set -eu
-          if [ "$EVENT_NAME" = push ]; then
+          if [ "$EVENT_NAME" = push ] && [ "$REF_TYPE" = tag ]; then
             version=${REF_NAME#v}
           else
             version=$(awk -F= '/^ARG VERSION=/ {print $2; exit}' Dockerfile)
@@ -290,6 +303,54 @@ jobs:
           set -eu
           printf '%s\n' "$DIGEST" | grep -Eq '^sha256:[0-9a-f]{64}$'
           printf 'name=%s@%s\n' "$IMAGE_NAME" "$DIGEST" >> "$GITHUB_OUTPUT"
+
+  scheduled-image-scan:
+    if: github.repository == 'home-ops/librespeed-exporter' && github.event_name == 'schedule'
+    runs-on: ubuntu-24.04
+    permissions:
+      packages: read
+    steps:
+      - name: Log in to GHCR for scanner reads
+        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef  # v3.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f  # v3
+
+      - name: Resolve current latest image digest
+        id: image
+        env:
+          IMAGE: ${{ env.IMAGE_NAME }}
+        run: |
+          set -eu
+          digest=$(docker buildx imagetools inspect --raw "$IMAGE:latest" \
+            | sha256sum | awk '{print "sha256:" $1}')
+          printf 'name=%s@%s\n' "$IMAGE" "$digest" >> "$GITHUB_OUTPUT"
+
+      - name: Scan current published image with Trivy (findings are report-only)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25  # v0.36.0
+        with:
+          scan-type: image
+          image-ref: ${{ steps.image.outputs.name }}
+          scanners: vuln,misconfig,secret
+          format: json
+          output: trivy-image.json
+          exit-code: "0"
+          version: v0.70.0
+
+      - name: Require image report
+        run: test -s trivy-image.json
+
+      - name: Upload nightly image scan report
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
+        with:
+          name: nightly-image-scan-${{ github.run_id }}
+          path: trivy-image.json
+          if-no-files-found: error
+          retention-days: 90
 
   image-scan:
     needs: [quality, source-scan, image-publish]
@@ -392,8 +453,7 @@ jobs:
     needs: [quality, source-scan, image-publish, image-scan]
     if: >-
       github.repository == 'home-ops/librespeed-exporter' &&
-      (github.event_name == 'schedule' ||
-       (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) ||
+      (github.event_name == 'push' ||
        (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'))
     runs-on: ubuntu-24.04
     permissions:
@@ -532,7 +592,7 @@ jobs:
           DIGEST: ${{ needs.image-publish.outputs.digest }}
           IMAGE_TAG: ${{ needs.image-publish.outputs.immutable-tag }}
           VERSION: ${{ needs.image-publish.outputs.version }}
-          RELEASE_TAG: ${{ github.event_name == 'push' && github.ref_name || needs.image-publish.outputs.immutable-tag }}
+          RELEASE_TAG: ${{ github.ref_type == 'tag' && github.ref_name || needs.image-publish.outputs.immutable-tag }}
           CLI_VERSION: ${{ needs.source-scan.outputs.cli-version }}
           BUILD_TIMESTAMP: ${{ needs.image-publish.outputs.timestamp }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -558,7 +618,7 @@ jobs:
             if [ "$release_tag" = "$RELEASE_TAG" ]; then
               release_assets=("${assets[@]}")
             fi
-            if [ "$release_tag" = "$IMAGE_TAG" ] && [ "$GITHUB_EVENT_NAME" = push ] && [ "$RELEASE_TAG" = "$IMAGE_TAG" ]; then
+            if [ "$GITHUB_REF_TYPE" = tag ] && [ "$release_tag" = "$GITHUB_REF_NAME" ]; then
               gh release create "$release_tag" --verify-tag \
                 --target "$GITHUB_SHA" \
                 --title "LibreSpeed Exporter $VERSION ($IMAGE_TAG)" \
@@ -637,7 +697,7 @@ jobs:
           TAG: ${{ needs.image-publish.outputs.immutable-tag }}
           VERSION: ${{ needs.image-publish.outputs.version }}
           TIMESTAMP: ${{ needs.image-publish.outputs.timestamp }}
-          RELEASE_TAG: ${{ github.event_name == 'push' && github.ref_name || needs.image-publish.outputs.immutable-tag }}
+          RELEASE_TAG: ${{ github.ref_type == 'tag' && github.ref_name || needs.image-publish.outputs.immutable-tag }}
           CLI_VERSION: ${{ needs.source-scan.outputs.cli-version }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |

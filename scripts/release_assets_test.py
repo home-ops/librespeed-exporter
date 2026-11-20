@@ -31,7 +31,7 @@ class ReleaseAssetsTest(unittest.TestCase):
             },
         )
 
-    def test_scheduled_release_uses_one_full_asset_set(self):
+    def test_same_tag_build_release_uses_one_full_asset_set(self):
         image, release = required_assets(
             "1.2.3-20261014T120000Z-sha-run",
             "1.2.3-20261014T120000Z-sha-run",
@@ -76,7 +76,7 @@ class ReleaseAssetsTest(unittest.TestCase):
             )
         )
 
-    def test_scheduled_release_validates_full_asset_set_on_same_tag(self):
+    def test_same_tag_build_release_validates_full_asset_set(self):
         tag = "1.2.3-20261014T120000Z-sha-run"
         required = required_assets(tag, tag, "v1.0.14")[0]
         self.assertTrue(validate_assets(tag, tag, required, required, "v1.0.14"))
