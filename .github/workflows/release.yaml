@@ -137,7 +137,7 @@ jobs:
           format: json
           output: trivy-source.json
           exit-code: "0"
-          version: v0.70.0
+          version: v0.76.2
 
       - name: Require source scan report
         run: test -s trivy-source.json
@@ -316,7 +316,7 @@ jobs:
           format: json
           output: trivy-image.json
           exit-code: "0"
-          version: v0.70.0
+          version: v0.76.2
 
       - name: Require image report
         run: test -s trivy-image.json
