@@ -14,8 +14,8 @@ generated module notice set.
 ## LibreSpeed CLI
 
 - Project: <https://github.com/librespeed/speedtest-cli>
-- Release: `v1.0.14`
-- Source commit: `42e5f76c90e64e04ab7079fd76d833dfe41805da`
+- Release: `v1.0.15`
+- Source commit: `8aefd77bd4bde428cd86d3622102f0ac0443d96e`
 - License: GNU Lesser General Public License, version 3.0, incorporating
   GNU General Public License, version 3.0 terms; see
   `LICENSES/librespeed-cli-LGPL-3.0.txt` and `LICENSES/GPL-3.0.txt`.
